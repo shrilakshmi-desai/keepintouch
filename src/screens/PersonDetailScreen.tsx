@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import Button from '../components/Button';
 import { useNow } from '../hooks/useNow';
-import { CONTACT_TYPE_LABELS, deleteContact, getContact } from '../lib/contacts';
+import { CONTACT_TYPE_LABELS, deleteContact, getContact, markReachedOut } from '../lib/contacts';
 import type { Contact } from '../lib/database.types';
 import { describeDue, formatDateTime } from '../lib/format';
+import { syncNotifications } from '../lib/notifications';
 import { describeSchedule, parseSchedule } from '../lib/schedule';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
@@ -26,6 +27,7 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
   const { contactId } = route.params;
   const [contact, setContact] = useState<Contact | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reachingOut, setReachingOut] = useState(false);
   const now = useNow();
 
   // Refetches on focus so edits are reflected when the form pops back.
@@ -64,6 +66,21 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
         : undefined,
     });
   }, [navigation, contact, contactId]);
+
+  async function handleReachedOut() {
+    if (!contact) return;
+    setReachingOut(true);
+    try {
+      const updated = await markReachedOut(contact);
+      setContact(updated);
+      // The pending notification was scheduled against the old reminder time.
+      await syncNotifications();
+    } catch (e) {
+      Alert.alert('Could not save', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setReachingOut(false);
+    }
+  }
 
   function confirmDelete() {
     if (!contact) return;
@@ -149,6 +166,10 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.actions}>
+        <Button
+          label={reachingOut ? 'Saving…' : 'I reached out'}
+          onPress={handleReachedOut}
+        />
         <Button
           label="Edit"
           variant="secondary"

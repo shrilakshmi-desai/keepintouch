@@ -223,6 +223,21 @@ export function nextFireTime(
   return computeNextReminder(schedule, { from: now });
 }
 
+/**
+ * Where the next reminder lands once the user says they've reached out.
+ *
+ * Measured from the moment of contact, not from the reminder that prompted it —
+ * replying three days late shouldn't compress the next gap to four days.
+ * A one-time reminder has nothing to follow it, so it clears.
+ */
+export function nextReminderAfterContact(
+  contact: Pick<Contact, 'schedule_kind' | 'schedule_config'>,
+  now: Date = new Date(),
+): Date | null {
+  const schedule = parseSchedule(contact.schedule_kind, contact.schedule_config);
+  return computeNextReminder(schedule, { from: now, afterContact: true });
+}
+
 export function defaultSchedule(kind: ScheduleKind): Schedule {
   return parseSchedule(kind, {});
 }

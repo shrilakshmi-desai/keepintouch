@@ -1,4 +1,5 @@
 import type { Contact, ContactType, ScheduleConfig, ScheduleKind } from './database.types';
+import { nextReminderAfterContact } from './schedule';
 import { supabase } from './supabase';
 
 /** The fields the Add/Edit form owns. */
@@ -62,6 +63,29 @@ export async function updateContact(id: string, draft: ContactDraft): Promise<Co
     .from('contacts')
     .update(draft)
     .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Records that the user got in touch and rolls the reminder forward.
+ *
+ * Both columns move together in one update — a stamped last_contacted_at with a
+ * stale next_reminder_at would leave the person permanently overdue.
+ */
+export async function markReachedOut(contact: Contact, now: Date = new Date()): Promise<Contact> {
+  const next = nextReminderAfterContact(contact, now);
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .update({
+      last_contacted_at: now.toISOString(),
+      next_reminder_at: next ? next.toISOString() : null,
+    })
+    .eq('id', contact.id)
     .select()
     .single();
 
