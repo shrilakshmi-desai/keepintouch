@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +16,7 @@ import {
 import Button from '../components/Button';
 import TextField from '../components/TextField';
 import TypeSelector from '../components/TypeSelector';
+import { importFromDeviceContacts } from '../lib/contactImport';
 import { createContact, getContact, updateContact, type ContactDraft } from '../lib/contacts';
 import type { ContactType } from '../lib/database.types';
 import { formatDateTime } from '../lib/format';
@@ -43,6 +45,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
   const [reminderAt, setReminderAt] = useState<Date | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: isEditing ? 'Edit person' : 'Add person' });
@@ -77,6 +80,51 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
       active = false;
     };
   }, [contactId, navigation]);
+
+  async function handleImport() {
+    setImporting(true);
+    try {
+      const result = await importFromDeviceContacts();
+
+      if (result.status === 'cancelled') return;
+
+      if (result.status === 'unavailable') {
+        Alert.alert('Contact import unavailable', result.reason);
+        return;
+      }
+
+      const { name: importedName, phone: importedPhone, email: importedEmail } = result.contact;
+
+      // Don't wipe details the user already typed just because this contact card
+      // happens to be missing them.
+      if (importedName) {
+        setName(importedName);
+        setNameError(null);
+      }
+      if (importedPhone) setPhone(importedPhone);
+      if (importedEmail) setEmail(importedEmail);
+
+      if (result.limitedByPermission) {
+        Alert.alert(
+          'Only the name came through',
+          'KeepInTouch needs contacts access to read phone numbers and emails. You can enable it in Settings, or just type them in.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ],
+        );
+      } else if (!importedPhone && !importedEmail) {
+        Alert.alert(
+          'No phone or email',
+          `${importedName || 'That contact'} has no phone number or email saved on this device.`,
+        );
+      }
+    } catch (e) {
+      Alert.alert('Could not import', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSave() {
     if (!name.trim()) {
@@ -128,6 +176,17 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={styles.importRow}>
+          <Button
+            label={importing ? 'Opening contacts…' : 'Import from contacts'}
+            variant="secondary"
+            onPress={handleImport}
+          />
+          <Text style={styles.hint}>
+            Pick someone from your phone to fill in their name, phone and email.
+          </Text>
+        </View>
+
         <TextField
           label="Name"
           value={name}
@@ -246,6 +305,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  importRow: {
+    gap: spacing.sm,
   },
   field: {
     gap: spacing.xs,

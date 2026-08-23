@@ -24,7 +24,13 @@
     },
     "plugins": [
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "KeepInTouch uses your contacts so you can add someone without typing their details."
+        }
+      ]
     ]
   }
 }
