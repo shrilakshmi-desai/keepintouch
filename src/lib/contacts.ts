@@ -1,13 +1,15 @@
-import type { Contact, ContactType } from './database.types';
+import type { Contact, ContactType, ScheduleConfig, ScheduleKind } from './database.types';
 import { supabase } from './supabase';
 
-/** The fields the Add/Edit form owns. Scheduling columns land in Step 5. */
+/** The fields the Add/Edit form owns. */
 export type ContactDraft = {
   name: string;
   type: ContactType;
   phone: string | null;
   email: string | null;
   talking_points: string | null;
+  schedule_kind: ScheduleKind;
+  schedule_config: ScheduleConfig;
   next_reminder_at: string | null;
 };
 

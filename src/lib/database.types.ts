@@ -7,11 +7,23 @@
 export type ContactType = 'relative' | 'friend' | 'acquaintance';
 export type ScheduleKind = 'recurring' | 'interval' | 'one_time';
 
-/** Shape of `contacts.schedule_config`, discriminated by `schedule_kind`. */
-export type ScheduleConfig =
-  | { weekday: number; hour: number; minute: number }
-  | { everyDays: number }
-  | { fireAt: string };
+/**
+ * Shape of `contacts.schedule_config`. Every key is optional because the column
+ * is jsonb and which keys are meaningful depends on `schedule_kind` — parse it
+ * through parseSchedule() in lib/schedule.ts rather than reading it directly.
+ */
+export type ScheduleConfig = {
+  /** recurring: 0 = Sunday */
+  weekday?: number;
+  hour?: number;
+  minute?: number;
+  /** recurring: 1 = weekly, 2 = fortnightly */
+  everyWeeks?: number;
+  /** interval */
+  everyDays?: number;
+  /** one_time: ISO instant */
+  fireAt?: string;
+};
 
 export type Profile = {
   id: string;

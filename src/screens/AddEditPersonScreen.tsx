@@ -1,4 +1,3 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
@@ -7,19 +6,26 @@ import {
   KeyboardAvoidingView,
   Linking,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import Button from '../components/Button';
+import ScheduleField from '../components/ScheduleField';
 import TextField from '../components/TextField';
 import TypeSelector from '../components/TypeSelector';
 import { importFromDeviceContacts } from '../lib/contactImport';
 import { createContact, getContact, updateContact, type ContactDraft } from '../lib/contacts';
 import type { ContactType } from '../lib/database.types';
-import { formatDateTime } from '../lib/format';
+import {
+  computeNextReminder,
+  defaultSchedule,
+  parseSchedule,
+  sameSchedule,
+  scheduleToConfig,
+  type Schedule,
+} from '../lib/schedule';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
 
@@ -37,15 +43,21 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState<ContactType>('friend');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [talkingPoints, setTalkingPoints] = useState('');
-  const [reminderAt, setReminderAt] = useState<Date | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [schedule, setSchedule] = useState<Schedule>(() => defaultSchedule('recurring'));
   const [nameError, setNameError] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
+
+  /**
+   * The schedule and reminder as loaded. If the user doesn't touch the schedule,
+   * an edit shouldn't silently push their next reminder further out.
+   */
+  const [savedSchedule, setSavedSchedule] = useState<Schedule | null>(null);
+  const [savedNextReminderAt, setSavedNextReminderAt] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: isEditing ? 'Edit person' : 'Add person' });
@@ -58,12 +70,15 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
     getContact(contactId)
       .then((contact) => {
         if (!active) return;
+        const loaded = parseSchedule(contact.schedule_kind, contact.schedule_config);
         setName(contact.name);
         setType(contact.type);
         setPhone(contact.phone ?? '');
         setEmail(contact.email ?? '');
         setTalkingPoints(contact.talking_points ?? '');
-        setReminderAt(contact.next_reminder_at ? new Date(contact.next_reminder_at) : null);
+        setSchedule(loaded);
+        setSavedSchedule(loaded);
+        setSavedNextReminderAt(contact.next_reminder_at);
       })
       .catch((e: unknown) => {
         Alert.alert(
@@ -126,6 +141,16 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
     }
   }
 
+  /**
+   * Recompute only when the schedule actually changed, or when there was no
+   * pending reminder to preserve.
+   */
+  function resolveNextReminderAt(): string | null {
+    const scheduleUnchanged = savedSchedule !== null && sameSchedule(savedSchedule, schedule);
+    if (scheduleUnchanged && savedNextReminderAt) return savedNextReminderAt;
+    return computeNextReminder(schedule)?.toISOString() ?? null;
+  }
+
   async function handleSave() {
     if (!name.trim()) {
       setNameError('A name is required.');
@@ -140,7 +165,9 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
       phone: nullIfBlank(phone),
       email: nullIfBlank(email),
       talking_points: nullIfBlank(talkingPoints),
-      next_reminder_at: reminderAt ? reminderAt.toISOString() : null,
+      schedule_kind: schedule.kind,
+      schedule_config: scheduleToConfig(schedule),
+      next_reminder_at: resolveNextReminderAt(),
     };
 
     try {
@@ -217,59 +244,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
           autoCorrect={false}
         />
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Next reminder</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setPickerOpen((open) => !open)}
-            style={({ pressed }) => [styles.dateButton, pressed && styles.pressed]}
-          >
-            <Text style={reminderAt ? styles.dateValue : styles.datePlaceholder}>
-              {reminderAt ? formatDateTime(reminderAt) : 'No reminder set'}
-            </Text>
-          </Pressable>
-
-          <View style={styles.dateActions}>
-            {!reminderAt ? (
-              <Pressable
-                onPress={() => {
-                  setReminderAt(new Date());
-                  setPickerOpen(true);
-                }}
-                hitSlop={6}
-              >
-                <Text style={styles.link}>Set a date</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => {
-                  setReminderAt(null);
-                  setPickerOpen(false);
-                }}
-                hitSlop={6}
-              >
-                <Text style={styles.linkMuted}>Clear</Text>
-              </Pressable>
-            )}
-          </View>
-
-          {pickerOpen && reminderAt ? (
-            <DateTimePicker
-              value={reminderAt}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selected) => {
-                if (Platform.OS !== 'ios') setPickerOpen(false);
-                if (event.type === 'dismissed') return;
-                if (selected) setReminderAt(selected);
-              }}
-            />
-          ) : null}
-
-          <Text style={styles.hint}>
-            A one-off date for now. Recurring schedules arrive in Step 5.
-          </Text>
-        </View>
+        <ScheduleField value={schedule} onChange={setSchedule} />
 
         <TextField
           label="Talking points (optional)"
@@ -308,46 +283,6 @@ const styles = StyleSheet.create({
   },
   importRow: {
     gap: spacing.sm,
-  },
-  field: {
-    gap: spacing.xs,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  dateButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  dateValue: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  datePlaceholder: {
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-  dateActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  link: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.accent,
-  },
-  linkMuted: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textMuted,
   },
   hint: {
     fontSize: 12,

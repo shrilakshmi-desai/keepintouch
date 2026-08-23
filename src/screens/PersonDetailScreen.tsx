@@ -15,6 +15,7 @@ import Button from '../components/Button';
 import { CONTACT_TYPE_LABELS, deleteContact, getContact } from '../lib/contacts';
 import type { Contact } from '../lib/database.types';
 import { describeDue, formatDateTime } from '../lib/format';
+import { describeSchedule, parseSchedule } from '../lib/schedule';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
 
@@ -112,6 +113,9 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
         {contact.next_reminder_at && !due.unscheduled ? (
           <Text style={styles.cardSub}>{formatDateTime(new Date(contact.next_reminder_at))}</Text>
         ) : null}
+        <Text style={styles.cardSub}>
+          {describeSchedule(parseSchedule(contact.schedule_kind, contact.schedule_config))}
+        </Text>
       </View>
 
       {contact.talking_points ? (
