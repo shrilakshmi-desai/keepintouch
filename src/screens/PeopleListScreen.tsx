@@ -11,9 +11,11 @@ import {
   View,
 } from 'react-native';
 import Button from '../components/Button';
+import { useNow } from '../hooks/useNow';
 import { CONTACT_TYPE_LABELS, listContacts } from '../lib/contacts';
 import type { Contact } from '../lib/database.types';
 import { describeDue } from '../lib/format';
+import { syncNotifications } from '../lib/notifications';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
 
@@ -23,6 +25,8 @@ export default function PeopleListScreen({ navigation }: Props) {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Keeps "Due today" / "Overdue" honest as time passes without a reload.
+  const now = useNow();
 
   const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'refresh') setRefreshing(true);
@@ -30,6 +34,9 @@ export default function PeopleListScreen({ navigation }: Props) {
       const rows = await listContacts();
       setContacts(rows);
       setError(null);
+      // This screen is focused after every add, edit and delete, so it's the one
+      // place that reliably sees fresh data — reuse it rather than refetching.
+      syncNotifications(rows).catch((e) => console.warn('[notifications] sync failed:', e));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load your people.');
       setContacts((current) => current ?? []);
@@ -98,9 +105,11 @@ export default function PeopleListScreen({ navigation }: Props) {
         renderItem={({ item }) => (
           <PersonRow
             contact={item}
+            now={now}
             onPress={() => navigation.navigate('PersonDetail', { contactId: item.id })}
           />
         )}
+        extraData={now}
       />
 
       <View style={styles.footer}>
@@ -110,8 +119,16 @@ export default function PeopleListScreen({ navigation }: Props) {
   );
 }
 
-function PersonRow({ contact, onPress }: { contact: Contact; onPress: () => void }) {
-  const due = describeDue(contact.next_reminder_at);
+function PersonRow({
+  contact,
+  now,
+  onPress,
+}: {
+  contact: Contact;
+  now: Date;
+  onPress: () => void;
+}) {
+  const due = describeDue(contact.next_reminder_at, now);
 
   return (
     <Pressable

@@ -1,4 +1,4 @@
-import type { ScheduleConfig, ScheduleKind } from './database.types';
+import type { Contact, ScheduleConfig, ScheduleKind } from './database.types';
 import { formatDate, formatTime } from './format';
 
 /**
@@ -77,15 +77,17 @@ export function parseSchedule(kind: ScheduleKind, config: unknown): Schedule {
   };
 }
 
+/**
+ * An hour from now, not tomorrow morning.
+ *
+ * A "tomorrow 09:00" default is a trap in a datetime picker: adjusting only the
+ * time leaves the date on tomorrow, so setting "12:10 AM" silently means
+ * tomorrow at 12:10 AM and the reminder reads a day later than intended.
+ */
 function defaultFireAt(): string {
-  const now = new Date();
-  return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-    DEFAULT_HOUR,
-    DEFAULT_MINUTE,
-  ).toISOString();
+  const at = new Date(Date.now() + 60 * 60 * 1000);
+  at.setSeconds(0, 0);
+  return at.toISOString();
 }
 
 /** Strips the discriminant — `kind` lives in the schedule_kind column. */
@@ -195,6 +197,30 @@ export function describeSchedule(schedule: Schedule): string {
       return `Once on ${formatDate(fireAt)} at ${formatTime(fireAt)}`;
     }
   }
+}
+
+/**
+ * When a person's next notification should fire, or null if none should.
+ *
+ * A reminder that passed without being acted on stays overdue in the UI — we
+ * deliberately don't move next_reminder_at — but the person should still be
+ * nudged again on their cadence, so we fall back to the next occurrence computed
+ * from the schedule. A missed one-time reminder has no next occurrence, so it
+ * stays overdue and silent until dealt with.
+ */
+export function nextFireTime(
+  contact: Pick<Contact, 'next_reminder_at' | 'schedule_kind' | 'schedule_config'>,
+  now: Date = new Date(),
+): Date | null {
+  if (contact.next_reminder_at) {
+    const at = new Date(contact.next_reminder_at);
+    if (!Number.isNaN(at.getTime()) && at.getTime() > now.getTime()) return at;
+  }
+
+  const schedule = parseSchedule(contact.schedule_kind, contact.schedule_config);
+  if (schedule.kind === 'one_time') return null;
+
+  return computeNextReminder(schedule, { from: now });
 }
 
 export function defaultSchedule(kind: ScheduleKind): Schedule {

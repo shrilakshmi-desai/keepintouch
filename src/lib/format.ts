@@ -37,12 +37,12 @@ export function describeDue(nextReminderAt: string | null, now: Date = new Date(
     };
   }
   if (days === 0) {
-    // Still today, but the moment may already have passed.
-    return {
-      label: due.getTime() < now.getTime() ? 'Due today' : `Due today, ${formatTime(due)}`,
-      overdue: due.getTime() < now.getTime(),
-      unscheduled: false,
-    };
+    // Same calendar day, but the moment may already have passed. Saying "Due
+    // today" next to an Overdue badge reads as a contradiction.
+    if (due.getTime() < now.getTime()) {
+      return { label: `Overdue since ${formatTime(due)}`, overdue: true, unscheduled: false };
+    }
+    return { label: `Due today, ${formatTime(due)}`, overdue: false, unscheduled: false };
   }
   if (days === 1) return { label: 'Due tomorrow', overdue: false, unscheduled: false };
   if (days < 7) return { label: `Due in ${days} days`, overdue: false, unscheduled: false };

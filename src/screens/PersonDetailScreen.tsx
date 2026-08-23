@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import Button from '../components/Button';
+import { useNow } from '../hooks/useNow';
 import { CONTACT_TYPE_LABELS, deleteContact, getContact } from '../lib/contacts';
 import type { Contact } from '../lib/database.types';
 import { describeDue, formatDateTime } from '../lib/format';
@@ -25,6 +26,7 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
   const { contactId } = route.params;
   const [contact, setContact] = useState<Contact | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const now = useNow();
 
   // Refetches on focus so edits are reflected when the form pops back.
   useFocusEffect(
@@ -98,7 +100,7 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  const due = describeDue(contact.next_reminder_at);
+  const due = describeDue(contact.next_reminder_at, now);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

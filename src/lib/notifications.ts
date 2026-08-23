@@ -1,0 +1,195 @@
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import { listContacts } from './contacts';
+import { debugLog, localStamp } from './debug';
+import type { Contact } from './database.types';
+import { describeDue } from './format';
+import { nextFireTime } from './schedule';
+
+/**
+ * iOS keeps at most 64 pending local notifications and silently drops the rest,
+ * so we schedule one per person and stay comfortably under the ceiling. Anything
+ * beyond this is picked up on a later sync as nearer reminders are consumed.
+ */
+const MAX_SCHEDULED = 60;
+
+const ANDROID_CHANNEL_ID = 'reminders';
+
+export type PermissionState = 'granted' | 'denied' | 'undetermined';
+
+export type SyncResult = {
+  permission: PermissionState;
+  scheduled: number;
+  /** People whose reminder didn't fit under MAX_SCHEDULED. */
+  skipped: number;
+};
+
+let configured = false;
+
+/** Safe to call repeatedly; only the first call does anything. */
+export async function configureNotifications(): Promise<void> {
+  if (configured) return;
+  configured = true;
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+      name: 'Keep-in-touch reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  }
+}
+
+function toState(status: Notifications.PermissionStatus): PermissionState {
+  if (status === 'granted') return 'granted';
+  if (status === 'denied') return 'denied';
+  return 'undetermined';
+}
+
+export async function getNotificationPermission(): Promise<PermissionState> {
+  const { status } = await Notifications.getPermissionsAsync();
+  return toState(status);
+}
+
+export async function requestNotificationPermission(): Promise<PermissionState> {
+  const { status } = await Notifications.requestPermissionsAsync();
+  return toState(status);
+}
+
+function buildContent(contact: Contact): Notifications.NotificationContentInput {
+  const talkingPoints = contact.talking_points?.trim();
+
+  return {
+    title: `Time to reach out to ${contact.name}`,
+    body: talkingPoints || 'Tap to see their details and mark that you got in touch.',
+    data: { contactId: contact.id },
+    ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null),
+  };
+}
+
+/**
+ * Cancels everything and reschedules from current data. Idempotent by design —
+ * calling it twice leaves the same set of pending notifications, which matters
+ * because it runs on every foreground and after every edit.
+ */
+export type SyncOptions = {
+  /**
+   * Show the system permission prompt if access hasn't been decided yet.
+   * Without this, a first-run user is never asked and nothing is ever scheduled.
+   */
+  requestIfUndetermined?: boolean;
+};
+
+export async function syncNotifications(
+  contacts?: Contact[],
+  { requestIfUndetermined = false }: SyncOptions = {},
+): Promise<SyncResult> {
+  await configureNotifications();
+
+  let permission = await getNotificationPermission();
+  if (permission === 'undetermined' && requestIfUndetermined) {
+    debugLog('notify', 'permission undetermined — prompting');
+    permission = await requestNotificationPermission();
+  }
+
+  const now = new Date();
+  debugLog('notify', `sync at ${localStamp(now)} (${now.toISOString()}) permission=${permission}`);
+
+  if (permission !== 'granted') {
+    debugLog('notify', 'NOT GRANTED — nothing will be scheduled');
+    // Don't leave stale notifications pending if access was revoked.
+    await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+    return { permission, scheduled: 0, skipped: 0 };
+  }
+
+  const rows = contacts ?? (await listContacts());
+
+  const due = rows
+    .map((contact) => ({ contact, at: nextFireTime(contact, now) }))
+    .filter((entry): entry is { contact: Contact; at: Date } => entry.at !== null)
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+
+  if (DEBUG_EACH_CONTACT) {
+    for (const contact of rows) {
+      const at = nextFireTime(contact, now);
+      const reminder = contact.next_reminder_at ? new Date(contact.next_reminder_at) : null;
+      debugLog(
+        'notify',
+        `· ${contact.name}` +
+          ` | next_reminder_at=${contact.next_reminder_at ?? 'null'}` +
+          ` local=${reminder ? localStamp(reminder) : '—'}` +
+          ` label="${describeDue(contact.next_reminder_at, now).label}"` +
+          ` fireAt=${at ? localStamp(at) : 'NONE'}` +
+          (at ? ` inMin=${Math.round((at.getTime() - now.getTime()) / 60000)}` : ''),
+      );
+    }
+  }
+
+  const scheduling = due.slice(0, MAX_SCHEDULED);
+
+  await Notifications.cancelAllScheduledNotificationsAsync();
+
+  for (const { contact, at } of scheduling) {
+    if (at.getTime() <= now.getTime()) {
+      debugLog('notify', `SKIP ${contact.name}: trigger ${localStamp(at)} is not in the future`);
+      continue;
+    }
+    const id = await Notifications.scheduleNotificationAsync({
+      content: buildContent(contact),
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
+    });
+    debugLog('notify', `scheduled ${contact.name} at ${localStamp(at)} id=${id}`);
+  }
+
+  await debugDumpPending();
+
+  return {
+    permission,
+    scheduled: scheduling.length,
+    skipped: due.length - scheduling.length,
+  };
+}
+
+const DEBUG_EACH_CONTACT = true;
+
+/** Proves what the OS actually holds, rather than what we think we scheduled. */
+export async function debugDumpPending(): Promise<void> {
+  try {
+    const pending = await Notifications.getAllScheduledNotificationsAsync();
+    debugLog('notify', `OS reports ${pending.length} pending notification(s)`);
+    for (const item of pending) {
+      const trigger = item.trigger as { type?: string; date?: number | string } | null;
+      const raw = trigger?.date;
+      const when = typeof raw === 'number' ? new Date(raw) : raw ? new Date(raw) : null;
+      debugLog(
+        'notify',
+        `  · "${item.content.title}" type=${trigger?.type ?? '?'} when=${
+          when ? localStamp(when) : JSON.stringify(trigger)
+        }`,
+      );
+    }
+  } catch (e) {
+    debugLog('notify', 'could not read pending notifications:', e);
+  }
+}
+
+export async function cancelAllNotifications(): Promise<void> {
+  await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+}
+
+/** Pulls the contact id out of a tapped notification, if it carries one. */
+export function contactIdFromResponse(
+  response: Notifications.NotificationResponse | null,
+): string | null {
+  const data = response?.notification?.request?.content?.data;
+  const contactId = data && typeof data === 'object' ? (data as Record<string, unknown>).contactId : null;
+  return typeof contactId === 'string' ? contactId : null;
+}
