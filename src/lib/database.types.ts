@@ -34,8 +34,13 @@ export type Contact = {
   created_at: string;
 };
 
-/** Columns the client supplies on insert; the rest are defaulted by Postgres. */
-export type ContactInsert = Omit<Contact, 'id' | 'created_at'>;
+/**
+ * Only user_id and name are required on insert — Postgres defaults id, created_at,
+ * type, schedule_kind and schedule_config, and the rest are nullable.
+ */
+export type ContactInsert = Pick<Contact, 'user_id' | 'name'> &
+  Partial<Omit<Contact, 'id' | 'created_at' | 'user_id' | 'name'>>;
+
 export type ContactUpdate = Partial<ContactInsert>;
 
 export type Database = {
@@ -45,11 +50,14 @@ export type Database = {
         Row: Profile;
         Insert: Pick<Profile, 'id'> & Partial<Profile>;
         Update: Partial<Profile>;
+        // supabase-js resolves table types to `never` without this key.
+        Relationships: [];
       };
       contacts: {
         Row: Contact;
         Insert: ContactInsert;
         Update: ContactUpdate;
+        Relationships: [];
       };
     };
     Views: Record<never, never>;

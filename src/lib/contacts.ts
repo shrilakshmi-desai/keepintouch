@@ -1,0 +1,81 @@
+import type { Contact, ContactType } from './database.types';
+import { supabase } from './supabase';
+
+/** The fields the Add/Edit form owns. Scheduling columns land in Step 5. */
+export type ContactDraft = {
+  name: string;
+  type: ContactType;
+  phone: string | null;
+  email: string | null;
+  talking_points: string | null;
+  next_reminder_at: string | null;
+};
+
+async function requireUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  if (!data.user) throw new Error('You are signed out. Sign in again to continue.');
+  return data.user.id;
+}
+
+/**
+ * Soonest-due first, with people who have no reminder set sorted to the bottom
+ * rather than the top. Matches the (user_id, next_reminder_at nulls last) index.
+ *
+ * No user_id filter is needed — RLS scopes the result to the caller.
+ */
+export async function listContacts(): Promise<Contact[]> {
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .order('next_reminder_at', { ascending: true, nullsFirst: false })
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getContact(id: string): Promise<Contact> {
+  const { data, error } = await supabase.from('contacts').select('*').eq('id', id).single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createContact(draft: ContactDraft): Promise<Contact> {
+  const userId = await requireUserId();
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .insert({ ...draft, user_id: userId, last_contacted_at: null })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateContact(id: string, draft: ContactDraft): Promise<Contact> {
+  const { data, error } = await supabase
+    .from('contacts')
+    .update(draft)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  const { error } = await supabase.from('contacts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export const CONTACT_TYPES: readonly ContactType[] = ['relative', 'friend', 'acquaintance'] as const;
+
+export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
+  relative: 'Relative',
+  friend: 'Friend',
+  acquaintance: 'Acquaintance',
+};

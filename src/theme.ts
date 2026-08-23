@@ -4,8 +4,11 @@ export const colors = {
   text: '#111418',
   textMuted: '#6B7280',
   accent: '#2563EB',
+  accentSoft: '#EFF6FF',
   border: '#E5E7EB',
   overdue: '#DC2626',
+  overdueSoft: '#FEF2F2',
+  danger: '#DC2626',
 } as const;
 
 export const spacing = {
