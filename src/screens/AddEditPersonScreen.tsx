@@ -11,12 +11,14 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import ScheduleField from '../components/ScheduleField';
 import TextField from '../components/TextField';
 import TypeSelector from '../components/TypeSelector';
 import { importFromDeviceContacts } from '../lib/contactImport';
 import { createContact, getContact, updateContact, type ContactDraft } from '../lib/contacts';
+import { syncNotifications } from '../lib/notifications';
 import type { ContactType } from '../lib/database.types';
 import {
   computeNextReminder,
@@ -40,6 +42,7 @@ function nullIfBlank(value: string): string | null {
 export default function AddEditPersonScreen({ navigation, route }: Props) {
   const contactId = route.params?.contactId;
   const isEditing = Boolean(contactId);
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
@@ -176,6 +179,15 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
       } else {
         await createContact(draft);
       }
+
+      // Notification content is captured when it's scheduled, so an edited name,
+      // talking points or schedule only reaches the banner after a resync. Doing
+      // it here rather than on the People list matters: saving an edit opened
+      // from Person detail returns there, never touching the list.
+      await syncNotifications().catch((e) =>
+        console.warn('[notifications] post-save sync failed:', e),
+      );
+
       navigation.goBack();
     } catch (e) {
       Alert.alert('Could not save', e instanceof Error ? e.message : 'Please try again.');
@@ -200,7 +212,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
     >
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.importRow}>
@@ -208,6 +220,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
             label={importing ? 'Opening contacts…' : 'Import from contacts'}
             variant="secondary"
             onPress={handleImport}
+            disabled={importing || saving}
           />
           <Text style={styles.hint}>
             Pick someone from your phone to fill in their name, phone and email.
@@ -259,6 +272,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
         <Button
           label={saving ? 'Saving…' : isEditing ? 'Save changes' : 'Add person'}
           onPress={handleSave}
+          disabled={saving}
         />
       </ScrollView>
     </KeyboardAvoidingView>

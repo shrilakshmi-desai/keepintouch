@@ -107,8 +107,14 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
+        {permission === null ? <Text style={styles.cardBody}>Checking…</Text> : null}
+
         {permission === 'undetermined' ? (
-          <Button label={busy ? 'Asking…' : 'Allow notifications'} onPress={handleEnable} />
+          <Button
+            label={busy ? 'Asking…' : 'Allow notifications'}
+            onPress={handleEnable}
+            disabled={busy}
+          />
         ) : null}
         {permission === 'denied' ? (
           <Button
@@ -126,6 +132,7 @@ export default function SettingsScreen() {
           label={busy ? 'Working…' : 'Sign out'}
           variant="secondary"
           onPress={handleSignOut}
+          disabled={busy}
         />
       </View>
     </ScrollView>

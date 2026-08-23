@@ -5,18 +5,23 @@ type Props = {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary';
+  /** Blocks presses as well as dimming — a fast double-tap on Save would otherwise submit twice. */
+  disabled?: boolean;
 };
 
-export default function Button({ label, onPress, variant = 'primary' }: Props) {
+export default function Button({ label, onPress, variant = 'primary', disabled = false }: Props) {
   const isPrimary = variant === 'primary';
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
         isPrimary ? styles.primary : styles.secondary,
-        pressed && styles.pressed,
+        pressed && !disabled && styles.pressed,
+        disabled && styles.disabled,
       ]}
     >
       <Text style={[styles.label, isPrimary ? styles.primaryLabel : styles.secondaryLabel]}>
@@ -43,6 +48,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
+  },
+  disabled: {
+    opacity: 0.5,
   },
   label: {
     fontSize: 16,

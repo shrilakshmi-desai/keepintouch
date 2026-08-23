@@ -4,6 +4,7 @@ import { listContacts } from './contacts';
 import { debugLog, localStamp } from './debug';
 import type { Contact } from './database.types';
 import { describeDue } from './format';
+import { GENERIC_REMINDER_BODY, reminderBody, reminderTitle } from './reminderContent';
 import { nextFireTime } from './schedule';
 
 /**
@@ -64,12 +65,29 @@ export async function requestNotificationPermission(): Promise<PermissionState> 
   return toState(status);
 }
 
+/**
+ * Built fresh on every sync from the row just read, so edited talking points are
+ * reflected — notification content is a snapshot taken at schedule time, not a
+ * live view of the database.
+ *
+ * `?.trim()` plus `||` means a null, undefined, empty or whitespace-only value
+ * all fall through to the generic body; the literal strings "null"/"undefined"
+ * can never reach the banner.
+ */
 function buildContent(contact: Contact): Notifications.NotificationContentInput {
-  const talkingPoints = contact.talking_points?.trim();
+  const title = reminderTitle(contact.name);
+  const body = reminderBody(contact.talking_points);
+  const usedTalkingPoints = body !== GENERIC_REMINDER_BODY;
+
+  debugLog(
+    'notify',
+    `  content: title=${JSON.stringify(title)} body=${JSON.stringify(body)} ` +
+      `(${usedTalkingPoints ? `talking points, ${body.length} chars` : 'no talking points → generic body'})`,
+  );
 
   return {
-    title: `Time to reach out to ${contact.name}`,
-    body: talkingPoints || 'Tap to see their details and mark that you got in touch.',
+    title,
+    body,
     data: { contactId: contact.id },
     ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null),
   };

@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import { useNow } from '../hooks/useNow';
 import { CONTACT_TYPE_LABELS, deleteContact, getContact, markReachedOut } from '../lib/contacts';
@@ -29,6 +30,7 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [reachingOut, setReachingOut] = useState(false);
   const now = useNow();
+  const insets = useSafeAreaInsets();
 
   // Refetches on focus so edits are reflected when the form pops back.
   useFocusEffect(
@@ -120,7 +122,10 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
   const due = describeDue(contact.next_reminder_at, now);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom }]}
+    >
       <View style={styles.header}>
         <Text style={styles.name}>{contact.name}</Text>
         <Text style={styles.type}>{CONTACT_TYPE_LABELS[contact.type]}</Text>
@@ -169,11 +174,13 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
         <Button
           label={reachingOut ? 'Saving…' : 'I reached out'}
           onPress={handleReachedOut}
+          disabled={reachingOut}
         />
         <Button
           label="Edit"
           variant="secondary"
           onPress={() => navigation.navigate('AddEditPerson', { contactId })}
+          disabled={reachingOut}
         />
         <Pressable accessibilityRole="button" onPress={confirmDelete} hitSlop={8}>
           <Text style={styles.delete}>Delete person</Text>

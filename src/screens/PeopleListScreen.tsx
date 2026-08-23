@@ -10,7 +10,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
+import NotificationNotice from '../components/NotificationNotice';
 import { useNow } from '../hooks/useNow';
 import { CONTACT_TYPE_LABELS, listContacts } from '../lib/contacts';
 import type { Contact } from '../lib/database.types';
@@ -27,6 +29,7 @@ export default function PeopleListScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   // Keeps "Due today" / "Overdue" honest as time passes without a reload.
   const now = useNow();
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'refresh') setRefreshing(true);
@@ -77,6 +80,8 @@ export default function PeopleListScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <NotificationNotice />
+
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
@@ -112,7 +117,7 @@ export default function PeopleListScreen({ navigation }: Props) {
         extraData={now}
       />
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: spacing.lg + insets.bottom }]}>
         <Button label="Add a person" onPress={() => navigation.navigate('AddEditPerson')} />
       </View>
     </View>
