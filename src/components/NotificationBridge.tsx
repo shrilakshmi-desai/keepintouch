@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import {
+  LOCAL_NOTIFICATIONS_SUPPORTED,
   cancelAllNotifications,
   configureNotifications,
   contactIdFromResponse,
@@ -22,6 +23,7 @@ export default function NotificationBridge() {
   const { session } = useAuth();
 
   useEffect(() => {
+    if (!LOCAL_NOTIFICATIONS_SUPPORTED) return;
     configureNotifications().catch(reportSyncFailure);
   }, []);
 
@@ -29,6 +31,7 @@ export default function NotificationBridge() {
   // is what replaces "reschedule the moment one fires" — iOS won't wake us for a
   // delivered local notification, so the next app open is the reliable hook.
   useEffect(() => {
+    if (!LOCAL_NOTIFICATIONS_SUPPORTED) return;
     if (!session) {
       cancelAllNotifications().catch(reportSyncFailure);
       return;
@@ -47,16 +50,17 @@ export default function NotificationBridge() {
   // A notification arriving while the app is open consumes a pending slot, so
   // queue up the following occurrence straight away.
   useEffect(() => {
-    if (!session) return;
+    if (!LOCAL_NOTIFICATIONS_SUPPORTED || !session) return;
     const subscription = Notifications.addNotificationReceivedListener(() => {
       syncNotifications().catch(reportSyncFailure);
     });
     return () => subscription.remove();
   }, [session]);
 
-  // Tapping a notification opens that person.
+  // Tapping a notification opens that person. Web Push taps are handled by the
+  // service worker instead, wired up in a later step.
   useEffect(() => {
-    if (!session) return;
+    if (!LOCAL_NOTIFICATIONS_SUPPORTED || !session) return;
     let cancelled = false;
 
     const open = (response: Notifications.NotificationResponse | null) => {

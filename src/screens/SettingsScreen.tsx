@@ -25,6 +25,10 @@ const PERMISSION_COPY: Record<PermissionState, { title: string; body: string }> 
     title: 'Reminders are blocked',
     body: 'Notifications are turned off for this app, so nothing will nudge you. You can re-enable them in your device settings.',
   },
+  unsupported: {
+    title: 'Reminders are mobile-only for now',
+    body: 'This browser version can’t schedule reminders yet — they arrive in the mobile app. Web notifications are coming.',
+  },
 };
 
 export default function SettingsScreen() {

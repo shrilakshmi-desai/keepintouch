@@ -14,7 +14,14 @@ const MAX_SCHEDULED = 60;
 
 const ANDROID_CHANNEL_ID = 'reminders';
 
-export type PermissionState = 'granted' | 'denied' | 'undetermined';
+/**
+ * On-device scheduling is a native capability. The browser gets reminders via
+ * Web Push instead, which is wired up in a later step — until then the web build
+ * deliberately schedules nothing rather than half-working.
+ */
+export const LOCAL_NOTIFICATIONS_SUPPORTED = Platform.OS !== 'web';
+
+export type PermissionState = 'granted' | 'denied' | 'undetermined' | 'unsupported';
 
 export type SyncResult = {
   permission: PermissionState;
@@ -35,7 +42,7 @@ let configured = false;
 
 /** Safe to call repeatedly; only the first call does anything. */
 export async function configureNotifications(): Promise<void> {
-  if (configured) return;
+  if (!LOCAL_NOTIFICATIONS_SUPPORTED || configured) return;
   configured = true;
 
   Notifications.setNotificationHandler({
@@ -62,11 +69,13 @@ function toState(status: Notifications.PermissionStatus): PermissionState {
 }
 
 export async function getNotificationPermission(): Promise<PermissionState> {
+  if (!LOCAL_NOTIFICATIONS_SUPPORTED) return 'unsupported';
   const { status } = await Notifications.getPermissionsAsync();
   return toState(status);
 }
 
 export async function requestNotificationPermission(): Promise<PermissionState> {
+  if (!LOCAL_NOTIFICATIONS_SUPPORTED) return 'unsupported';
   const { status } = await Notifications.requestPermissionsAsync();
   return toState(status);
 }
@@ -94,6 +103,14 @@ export async function syncNotifications(
   contacts?: Contact[],
   { requestIfUndetermined = false }: SyncOptions = {},
 ): Promise<SyncResult> {
+  // Placeholder for the browser until Web Push lands. Scheduling nothing is the
+  // honest behaviour: expo-notifications cannot deliver a reminder to a closed
+  // tab, so a partial implementation here would look like it worked and silently
+  // never fire.
+  if (!LOCAL_NOTIFICATIONS_SUPPORTED) {
+    return { permission: 'unsupported', scheduled: 0, skipped: 0 };
+  }
+
   await configureNotifications();
 
   let permission = await getNotificationPermission();
@@ -142,6 +159,7 @@ export async function syncNotifications(
 }
 
 export async function cancelAllNotifications(): Promise<void> {
+  if (!LOCAL_NOTIFICATIONS_SUPPORTED) return;
   await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 }
 

@@ -37,7 +37,23 @@ export default function NotificationNotice() {
     }, []),
   );
 
+  // 'unsupported' is the web build before Web Push lands — say so plainly rather
+  // than offering an Allow button that cannot do anything.
   if (permission === null || permission === 'granted') return null;
+
+  if (permission === 'unsupported') {
+    return (
+      <View style={styles.banner}>
+        <View style={styles.text}>
+          <Text style={styles.title}>Reminders aren&rsquo;t on yet here</Text>
+          <Text style={styles.body}>
+            Everything else works in the browser. Reminder notifications currently arrive in the
+            mobile app.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   const denied = permission === 'denied';
 

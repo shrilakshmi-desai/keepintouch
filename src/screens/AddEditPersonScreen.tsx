@@ -16,7 +16,7 @@ import Button from '../components/Button';
 import ScheduleField from '../components/ScheduleField';
 import TextField from '../components/TextField';
 import TypeSelector from '../components/TypeSelector';
-import { importFromDeviceContacts } from '../lib/contactImport';
+import { CONTACT_IMPORT_SUPPORTED, importFromDeviceContacts } from '../lib/contactImport';
 import { createContact, getContact, updateContact, type ContactDraft } from '../lib/contacts';
 import { syncNotifications } from '../lib/notifications';
 import type { ContactType } from '../lib/database.types';
@@ -215,17 +215,21 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
         contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.importRow}>
-          <Button
-            label={importing ? 'Opening contacts…' : 'Import from contacts'}
-            variant="secondary"
-            onPress={handleImport}
-            disabled={importing || saving}
-          />
-          <Text style={styles.hint}>
-            Pick someone from your phone to fill in their name, phone and email.
-          </Text>
-        </View>
+        {CONTACT_IMPORT_SUPPORTED ? (
+          <View style={styles.importRow}>
+            <Button
+              label={importing ? 'Opening contacts…' : 'Import from contacts'}
+              variant="secondary"
+              onPress={handleImport}
+              disabled={importing || saving}
+            />
+            <Text style={styles.hint}>
+              Pick someone from your phone to fill in their name, phone and email.
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.hint}>Contact import is available in the mobile app.</Text>
+        )}
 
         <TextField
           label="Name"

@@ -1,4 +1,11 @@
 import * as Contacts from 'expo-contacts';
+import { Platform } from 'react-native';
+
+/**
+ * The browser has no address book to read, so the import affordance is hidden
+ * rather than shown and failing.
+ */
+export const CONTACT_IMPORT_SUPPORTED = Platform.OS !== 'web';
 
 export type ImportedContact = {
   name: string;
