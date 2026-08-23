@@ -158,9 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // In Expo Go this resolves to exp://<lan-ip>:<port>/--/auth-callback.
         // This exact string must be in Supabase's redirect allow-list, or Supabase
         // silently falls back to the project's Site URL and the redirect dies in
-        // the browser. It's logged so you can copy it straight into the dashboard.
+        // the browser. If the LAN address ever changes, the failure path below
+        // reports the new URL to allow-list.
         const redirectTo = Linking.createURL('auth-callback');
-        console.log('[auth] redirectTo =', redirectTo);
 
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',

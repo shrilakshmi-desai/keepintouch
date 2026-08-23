@@ -1,10 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { listContacts } from './contacts';
-import { debugLog, localStamp } from './debug';
 import type { Contact } from './database.types';
-import { describeDue } from './format';
-import { GENERIC_REMINDER_BODY, reminderBody, reminderTitle } from './reminderContent';
+import { reminderBody, reminderTitle } from './reminderContent';
 import { nextFireTime } from './schedule';
 
 /**
@@ -23,6 +21,14 @@ export type SyncResult = {
   scheduled: number;
   /** People whose reminder didn't fit under MAX_SCHEDULED. */
   skipped: number;
+};
+
+export type SyncOptions = {
+  /**
+   * Show the system permission prompt if access hasn't been decided yet.
+   * Without this, a first-run user is never asked and nothing is ever scheduled.
+   */
+  requestIfUndetermined?: boolean;
 };
 
 let configured = false;
@@ -66,28 +72,14 @@ export async function requestNotificationPermission(): Promise<PermissionState> 
 }
 
 /**
- * Built fresh on every sync from the row just read, so edited talking points are
- * reflected — notification content is a snapshot taken at schedule time, not a
- * live view of the database.
- *
- * `?.trim()` plus `||` means a null, undefined, empty or whitespace-only value
- * all fall through to the generic body; the literal strings "null"/"undefined"
- * can never reach the banner.
+ * Built fresh on every sync from the row just read. Notification content is a
+ * snapshot taken at schedule time, not a live view of the database, so an edit
+ * only reaches the banner once its notification is rescheduled.
  */
 function buildContent(contact: Contact): Notifications.NotificationContentInput {
-  const title = reminderTitle(contact.name);
-  const body = reminderBody(contact.talking_points);
-  const usedTalkingPoints = body !== GENERIC_REMINDER_BODY;
-
-  debugLog(
-    'notify',
-    `  content: title=${JSON.stringify(title)} body=${JSON.stringify(body)} ` +
-      `(${usedTalkingPoints ? `talking points, ${body.length} chars` : 'no talking points → generic body'})`,
-  );
-
   return {
-    title,
-    body,
+    title: reminderTitle(contact.name),
+    body: reminderBody(contact.talking_points),
     data: { contactId: contact.id },
     ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null),
   };
@@ -98,14 +90,6 @@ function buildContent(contact: Contact): Notifications.NotificationContentInput 
  * calling it twice leaves the same set of pending notifications, which matters
  * because it runs on every foreground and after every edit.
  */
-export type SyncOptions = {
-  /**
-   * Show the system permission prompt if access hasn't been decided yet.
-   * Without this, a first-run user is never asked and nothing is ever scheduled.
-   */
-  requestIfUndetermined?: boolean;
-};
-
 export async function syncNotifications(
   contacts?: Contact[],
   { requestIfUndetermined = false }: SyncOptions = {},
@@ -114,89 +98,47 @@ export async function syncNotifications(
 
   let permission = await getNotificationPermission();
   if (permission === 'undetermined' && requestIfUndetermined) {
-    debugLog('notify', 'permission undetermined — prompting');
     permission = await requestNotificationPermission();
   }
 
-  const now = new Date();
-  debugLog('notify', `sync at ${localStamp(now)} (${now.toISOString()}) permission=${permission}`);
-
   if (permission !== 'granted') {
-    debugLog('notify', 'NOT GRANTED — nothing will be scheduled');
     // Don't leave stale notifications pending if access was revoked.
     await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     return { permission, scheduled: 0, skipped: 0 };
   }
 
   const rows = contacts ?? (await listContacts());
+  const now = new Date();
 
   const due = rows
     .map((contact) => ({ contact, at: nextFireTime(contact, now) }))
     .filter((entry): entry is { contact: Contact; at: Date } => entry.at !== null)
     .sort((a, b) => a.at.getTime() - b.at.getTime());
 
-  if (DEBUG_EACH_CONTACT) {
-    for (const contact of rows) {
-      const at = nextFireTime(contact, now);
-      const reminder = contact.next_reminder_at ? new Date(contact.next_reminder_at) : null;
-      debugLog(
-        'notify',
-        `· ${contact.name}` +
-          ` | next_reminder_at=${contact.next_reminder_at ?? 'null'}` +
-          ` local=${reminder ? localStamp(reminder) : '—'}` +
-          ` label="${describeDue(contact.next_reminder_at, now).label}"` +
-          ` fireAt=${at ? localStamp(at) : 'NONE'}` +
-          (at ? ` inMin=${Math.round((at.getTime() - now.getTime()) / 60000)}` : ''),
-      );
-    }
-  }
-
   const scheduling = due.slice(0, MAX_SCHEDULED);
 
   await Notifications.cancelAllScheduledNotificationsAsync();
 
+  let scheduled = 0;
   for (const { contact, at } of scheduling) {
+    // nextFireTime should never return the past; a trigger date that has already
+    // passed simply never fires, so it's worth saying so rather than failing mute.
     if (at.getTime() <= now.getTime()) {
-      debugLog('notify', `SKIP ${contact.name}: trigger ${localStamp(at)} is not in the future`);
+      console.warn(`[notifications] skipped ${contact.name}: trigger is not in the future`);
       continue;
     }
-    const id = await Notifications.scheduleNotificationAsync({
+    await Notifications.scheduleNotificationAsync({
       content: buildContent(contact),
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
     });
-    debugLog('notify', `scheduled ${contact.name} at ${localStamp(at)} id=${id}`);
+    scheduled += 1;
   }
-
-  await debugDumpPending();
 
   return {
     permission,
-    scheduled: scheduling.length,
+    scheduled,
     skipped: due.length - scheduling.length,
   };
-}
-
-const DEBUG_EACH_CONTACT = true;
-
-/** Proves what the OS actually holds, rather than what we think we scheduled. */
-export async function debugDumpPending(): Promise<void> {
-  try {
-    const pending = await Notifications.getAllScheduledNotificationsAsync();
-    debugLog('notify', `OS reports ${pending.length} pending notification(s)`);
-    for (const item of pending) {
-      const trigger = item.trigger as { type?: string; date?: number | string } | null;
-      const raw = trigger?.date;
-      const when = typeof raw === 'number' ? new Date(raw) : raw ? new Date(raw) : null;
-      debugLog(
-        'notify',
-        `  · "${item.content.title}" type=${trigger?.type ?? '?'} when=${
-          when ? localStamp(when) : JSON.stringify(trigger)
-        }`,
-      );
-    }
-  } catch (e) {
-    debugLog('notify', 'could not read pending notifications:', e);
-  }
 }
 
 export async function cancelAllNotifications(): Promise<void> {
@@ -208,6 +150,7 @@ export function contactIdFromResponse(
   response: Notifications.NotificationResponse | null,
 ): string | null {
   const data = response?.notification?.request?.content?.data;
-  const contactId = data && typeof data === 'object' ? (data as Record<string, unknown>).contactId : null;
+  const contactId =
+    data && typeof data === 'object' ? (data as Record<string, unknown>).contactId : null;
   return typeof contactId === 'string' ? contactId : null;
 }
