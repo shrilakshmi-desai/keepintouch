@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 import {
   createContext,
   useContext,
@@ -118,6 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Fallback path: if the auth browser hands off to the OS instead of resolving
   // in-place, the redirect arrives here as a deep link.
   useEffect(() => {
+    // Native only. On web, getInitialURL() returns the current address, so this
+    // would race detectSessionInUrl to redeem the same code — and whichever lost
+    // would report a spurious failure.
+    if (Platform.OS === 'web') return;
+
     const handle = (url: string | null) => {
       if (!url) return;
       consumeRedirect(url).catch((e) => {
@@ -155,6 +161,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       initializing,
       async signInWithGoogle() {
+        if (Platform.OS === 'web') {
+          // Let the browser navigate to Google and back. The session arrives in
+          // the URL on return and supabase-js picks it up via detectSessionInUrl,
+          // so there's nothing to redeem by hand and no auth session to open.
+          const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: window.location.origin },
+          });
+          if (error) throw error;
+          return;
+        }
+
         // In Expo Go this resolves to exp://<lan-ip>:<port>/--/auth-callback.
         // This exact string must be in Supabase's redirect allow-list, or Supabase
         // silently falls back to the project's Site URL and the redirect dies in

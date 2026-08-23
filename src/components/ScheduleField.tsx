@@ -1,8 +1,7 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ScheduleKind } from '../lib/database.types';
 import { formatDateTime } from '../lib/format';
+import DateTimeInput from './DateTimeInput';
 import {
   WEEKDAY_LABELS,
   computeNextReminder,
@@ -59,9 +58,6 @@ function Chip({
 }
 
 export default function ScheduleField({ value, onChange }: Props) {
-  const [timeOpen, setTimeOpen] = useState(false);
-  const [dateOpen, setDateOpen] = useState(false);
-
   const preview = computeNextReminder(value);
 
   function switchKind(kind: ScheduleKind) {
@@ -144,50 +140,24 @@ export default function ScheduleField({ value, onChange }: Props) {
       {value.kind === 'one_time' ? (
         <>
           <Text style={styles.subLabel}>When</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setDateOpen((open) => !open)}
-            style={({ pressed }) => [styles.valueButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.valueText}>{formatDateTime(new Date(value.fireAt))}</Text>
-          </Pressable>
-          {dateOpen ? (
-            <DateTimePicker
-              value={new Date(value.fireAt)}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selected) => {
-                if (Platform.OS !== 'ios') setDateOpen(false);
-                if (event.type === 'dismissed' || !selected) return;
-                onChange({ ...value, fireAt: selected.toISOString() });
-              }}
-            />
-          ) : null}
+          <DateTimeInput
+            value={new Date(value.fireAt)}
+            mode="datetime"
+            accessibilityLabel="Reminder date and time"
+            onChange={(selected) => onChange({ ...value, fireAt: selected.toISOString() })}
+          />
         </>
       ) : (
         <>
           <Text style={styles.subLabel}>Time of day</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setTimeOpen((open) => !open)}
-            style={({ pressed }) => [styles.valueButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.valueText}>
-              {timeAsDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-            </Text>
-          </Pressable>
-          {timeOpen ? (
-            <DateTimePicker
-              value={timeAsDate}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selected) => {
-                if (Platform.OS !== 'ios') setTimeOpen(false);
-                if (event.type === 'dismissed' || !selected) return;
-                onChange({ ...value, hour: selected.getHours(), minute: selected.getMinutes() });
-              }}
-            />
-          ) : null}
+          <DateTimeInput
+            value={timeAsDate}
+            mode="time"
+            accessibilityLabel="Time of day for reminders"
+            onChange={(selected) =>
+              onChange({ ...value, hour: selected.getHours(), minute: selected.getMinutes() })
+            }
+          />
         </>
       )}
 
@@ -268,19 +238,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     minWidth: 72,
     textAlign: 'center',
-  },
-  valueButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    alignSelf: 'flex-start',
-    minWidth: 140,
-  },
-  valueText: {
-    fontSize: 16,
-    color: colors.text,
   },
   summary: {
     marginTop: spacing.xs,
