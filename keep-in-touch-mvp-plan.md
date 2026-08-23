@@ -11,7 +11,7 @@ A working spec and step-by-step build plan for building the app with Claude Code
 
 A mobile app where you:
 
-- Sign in with Google or Apple.
+- Sign in with Google.
 - Add people (typed in, or imported from your phone contacts).
 - Tag each person (relative / friend / acquaintance).
 - Set a keep-in-touch schedule per person: recurring (e.g. every Sunday morning, every 6 months on a Saturday evening), a simple interval (every 2 weeks), or a one-time reminder.
@@ -31,14 +31,19 @@ That's the whole loop. Everything else is v2.
 | Running it personally | **Expo Go** | Free app on your phone that runs your project live while you build. No App Store, no developer account. This is your home for the app during personal use. |
 | Reminders | **Expo Notifications (on-device local)** | The MVP schedules reminders directly on the phone. No server cron, works offline, free, reliable. This is what dissolves the "reliable scheduled notifications" crux. |
 | Contact import | **Expo Contacts** | Reads the phone address book with permission → tap-to-add instead of typing. This is the "low-friction entry" win, and the main reason to go native over web. |
-| Backend + DB + Auth | **Supabase** | Postgres database, built-in auth with Google + Apple sign-in, and a clean Expo SDK — all in one. Simpler than wiring Vercel + a separate auth provider for an MVP. |
+| Backend + DB + Auth | **Supabase** | Postgres database, built-in Google auth, and a clean Expo SDK — all in one. Simpler than wiring Vercel + a separate auth provider for an MVP. |
 | Language | **TypeScript** | Type safety catches a whole class of bugs; Claude Code works well in it. |
 
 **Note on Vercel:** not used in the MVP. Supabase covers the backend. Vercel becomes useful later if you add a web dashboard, marketing site, or server-driven push (v2+).
 
 **Why local notifications, not server push, for v1:** your reminders are user-defined schedules ("every Sunday 9am"). The phone can fire those itself. Server push only becomes necessary when you need cross-device sync or a server to decide *when* something fires — neither is needed for the MVP. One caveat handled in the build: iOS keeps at most 64 pending scheduled notifications, so the app reschedules the next occurrence each time one fires rather than pre-scheduling forever.
 
-**One Expo Go caveat to know:** local notifications and contacts work in Expo Go for testing. If you ever find a notification behaves differently in Expo Go than expected, that's a known quirk of the shared Expo Go container — it resolves once you make a standalone build (Step 9). For personal daily use, Expo Go is fine to start.
+**What actually works in Expo Go (verified against Expo/Supabase docs, July 2026):**
+
+- **Local/scheduled notifications — fully supported**, iOS and Android. The SDK 53 restriction people mention removed *remote push* on Android only; this app schedules everything on-device, so it is unaffected. Step 6 works in Expo Go as written.
+- **Contacts — supported.** `expo-contacts` is bundled in Expo Go.
+- **Google sign-in — supported via the web OAuth flow** (`supabase.auth.signInWithOAuth` + `expo-web-browser` + `expo-linking`). Note this is *not* Supabase's headline recommendation, which is `@react-native-google-signin/google-signin` + `signInWithIdToken` — that library ships native code and **cannot run in Expo Go**. We deliberately use the web flow.
+- **Apple sign-in — deferred, on purpose.** It technically runs in Expo Go, but signs in under Expo Go's bundle ID (`host.exp.Exponent`), and Apple scopes its user ID to the developer team. So an Apple account created in Expo Go would become a *different* Supabase user in any future standalone build, orphaning your data. Google's user ID comes from our own OAuth client and stays stable across Expo Go and any later build — which is why Google is the only provider in v1.
 
 ---
 
@@ -60,8 +65,8 @@ Two tables to start.
 - `talking_points` (text, optional)
 - `schedule_kind` (enum: `recurring` | `interval` | `one_time`)
 - `schedule_config` (jsonb — e.g. `{ "weekday": 0, "hour": 9, "minute": 0 }` for "every Sunday 9am", or `{ "everyDays": 14 }`, or `{ "fireAt": "2026-08-01T18:00:00" }`)
-- `next_reminder_at` (timestamp — computed, drives the notification)
-- `last_contacted_at` (timestamp, nullable)
+- `next_reminder_at` (timestamptz — computed, drives the notification)
+- `last_contacted_at` (timestamptz, nullable)
 - `created_at`
 
 **Security:** turn on Row Level Security so each user can only read/write their own contacts. (Claude Code will set this up — it's a standard Supabase policy.)
@@ -70,7 +75,7 @@ Two tables to start.
 
 ## 4. Screens (MVP)
 
-1. **Sign in** — Google / Apple buttons.
+1. **Sign in** — Google button.
 2. **People list** — everyone you track, sorted by who's due soonest; a badge on anyone overdue.
 3. **Add / edit person** — name, type, optional phone/email, contact-picker button to import, schedule picker, talking points.
 4. **Person detail** — their info, talking points, next reminder, and a "Reached out" button.
@@ -86,18 +91,19 @@ Give Claude Code these as ordered milestones. Each is a natural stopping point w
 
 ### Step 0 — Prerequisites (you do this once)
 - Install Node.js (LTS) and the free **Expo Go** app on your iPhone.
-- Create a free Supabase account and a new project.
-- **No Apple Developer account needed to start.** For personal use you run the app inside Expo Go, which is free. An Apple Developer account ($99/yr) is only required later *if* you decide you want the app as its own standalone icon (see Step 9). Google sign-in setup is free.
+- Create a free Supabase account and a new project. Grab the **Project URL** and **anon/publishable key** (never the `service_role` key — it bypasses RLS).
+- Create a free **Google Cloud project + OAuth client**, and paste its client ID/secret into Supabase's Google auth provider. This is the only external account setup v1 needs.
+- **No Apple Developer account needed — ever, unless you choose Step 9.** For personal use you run the app inside Expo Go, which is free.
 
-**Prompt to Claude Code:** "Walk me through installing Node, the Expo CLI, and setting up my Supabase project keys, one step at a time."
+**Prompt to Claude Code:** "Walk me through setting up my Supabase project keys and Google OAuth client, one step at a time."
 
 ### Step 1 — Scaffold the app
 Create a new Expo (TypeScript) project with navigation and the five screens as empty placeholders.
 **Prompt:** "Create a new Expo TypeScript app called KeepInTouch with React Navigation and five placeholder screens: SignIn, PeopleList, AddEditPerson, PersonDetail, Settings. Make it run in Expo Go on my iPhone via the QR code."
 
 ### Step 2 — Supabase + auth
-Wire up Supabase, create the `profiles` and `contacts` tables with RLS, and implement Google + Apple sign-in.
-**Prompt:** "Connect this app to my Supabase project. Create the profiles and contacts tables with row-level security from the data model in my plan. Implement Google and Apple sign-in on the SignIn screen, and auto-create a profile row on first sign-in."
+Wire up Supabase, create the `profiles` and `contacts` tables with RLS, and implement Google sign-in via the Expo-Go-compatible web OAuth flow.
+**Prompt:** "Connect this app to my Supabase project. Create the profiles and contacts tables with row-level security from the data model in my plan. Implement Google sign-in on the SignIn screen using signInWithOAuth with expo-web-browser and expo-linking (the flow that works in Expo Go — not @react-native-google-signin), persist the session with AsyncStorage, and auto-create a profile row on first sign-in."
 
 ### Step 3 — Contacts CRUD
 Build add/edit/list/detail for people, storing to Supabase. No scheduling logic yet — just a plain date field for `next_reminder_at`.
@@ -123,9 +129,8 @@ The button on Person detail sets `last_contacted_at = now`, recomputes `next_rem
 Empty states, loading states, permission-denied fallback, and a real end-to-end test with a reminder set a few minutes out. **This is where you start using it personally — no App Store involved.**
 **Prompt:** "Add empty/loading states and a graceful fallback when notifications are denied. Then help me test end-to-end in Expo Go on my iPhone with a reminder 2 minutes from now."
 
-### Step 9 — OPTIONAL, LATER: standalone build
-Only do this if you want the app as its own icon that runs without your computer, or you decide to share it. Uses Expo EAS and requires the $99/yr Apple Developer account. For personal use, you can skip this indefinitely and stay in Expo Go.
-**Prompt (when/if you want it):** "Set up EAS Build and walk me through creating a standalone iOS build I can install on my own phone via TestFlight."
+### Step 9 — PARKED (not part of this build)
+A standalone App Store build is an indefinite maybe, not a plan. Ignore it. It would only matter if you later want the app as its own icon running without your computer, or want to share it — at which point it means EAS Build, the $99/yr Apple Developer account, and adding Apple sign-in. Nothing in Steps 1–8 needs to anticipate it.
 
 ---
 
@@ -135,7 +140,8 @@ Only do this if you want the app as its own icon that runs without your computer
 - Server-driven push and cross-device sync → **v2** (add Vercel Cron or Upstash QStash + Expo Push then).
 - Rich contact enrichment / AI features → later.
 - Web dashboard → later (this is where Vercel + v0 could actually earn a place).
-- Standalone App Store build → optional, only if you outgrow Expo Go (Step 9).
+- Apple sign-in → only alongside a standalone build, for the identity reason in §2.
+- Standalone App Store build → parked indefinitely (Step 9). Expo Go is the destination.
 
 Keeping v1 this tight is the point: it's the smallest thing that proves the core loop is useful — to you first.
 
@@ -143,4 +149,4 @@ Keeping v1 this tight is the point: it's the smallest thing that proves the core
 
 ## 7. Rough sequencing expectation
 
-Steps 1–4 get you a working, signed-in contact book on your phone (in Expo Go). Steps 5–7 add the actual reminder magic. Step 8 is where you start living with it day to day — entirely inside Expo Go, free, no App Store. Only reach for Step 9 if and when you want it as a permanent standalone app or want to share it with others.
+Steps 1–4 get you a working, signed-in contact book on your phone (in Expo Go). Steps 5–7 add the actual reminder magic. Step 8 is where you start living with it day to day — entirely inside Expo Go, free, no App Store. **Step 8 is the finish line.** Step 9 is parked and needs no thought until you decide otherwise.
