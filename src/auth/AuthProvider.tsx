@@ -11,6 +11,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { adoptDeviceTimeZone } from '../lib/profile';
 import { supabase } from '../lib/supabase';
 
 // Dismisses the auth browser if it's still open when we come back.
@@ -148,6 +149,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+
+      // The server computes reminder times against the profile's timezone, so a
+      // new account needs a real one before its first reminder is ever sent.
+      if (nextSession) {
+        adoptDeviceTimeZone().catch((e) => {
+          console.warn('[profile] could not set timezone:', e);
+        });
+      }
     });
 
     return () => {

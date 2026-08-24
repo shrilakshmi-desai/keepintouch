@@ -1,92 +1,162 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
+  LOCAL_NOTIFICATIONS_SUPPORTED,
   getNotificationPermission,
   requestNotificationPermission,
   syncNotifications,
   type PermissionState,
 } from '../lib/notifications';
+import {
+  WEB_PUSH_PLATFORM,
+  getWebPushState,
+  needsHomeScreenInstall,
+  subscribeToWebPush,
+  type WebPushState,
+} from '../lib/webPush';
 import { colors, spacing } from '../theme';
 
 /**
- * Without notification access the app still tracks people but never nudges,
- * which looks like it's simply broken. This says so on the main screen rather
- * than leaving it buried in Settings.
+ * Tells the user when reminders won't reach them, and offers the one action
+ * that fixes it. Renders nothing once reminders are actually working.
  *
- * Renders nothing when permission is granted or still unknown.
+ * Native and web have different failure modes: on native it's a permission, on
+ * web it's a permission *and* a push subscription, and on an iPhone it's "you
+ * haven't installed it yet" — which reads as unsupported but is fixable.
  */
 export default function NotificationNotice() {
-  const [permission, setPermission] = useState<PermissionState | null>(null);
+  const [nativeState, setNativeState] = useState<PermissionState | null>(null);
+  const [pushState, setPushState] = useState<WebPushState | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Rechecked on focus so returning from the OS settings app clears the banner.
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      getNotificationPermission()
-        .then((state) => {
-          if (active) setPermission(state);
-        })
-        .catch(() => {
-          if (active) setPermission(null);
-        });
+
+      const read = async () => {
+        if (WEB_PUSH_PLATFORM) {
+          const state = await getWebPushState().catch(() => 'unsupported' as WebPushState);
+          if (active) setPushState(state);
+        } else {
+          const state = await getNotificationPermission().catch(() => null);
+          if (active) setNativeState(state);
+        }
+      };
+
+      read();
       return () => {
         active = false;
       };
     }, []),
   );
 
-  // 'unsupported' is the web build before Web Push lands — say so plainly rather
-  // than offering an Allow button that cannot do anything.
-  if (permission === null || permission === 'granted') return null;
-
-  if (permission === 'unsupported') {
-    return (
-      <View style={styles.banner}>
-        <View style={styles.text}>
-          <Text style={styles.title}>Reminders aren&rsquo;t on yet here</Text>
-          <Text style={styles.body}>
-            Everything else works in the browser. Reminder notifications currently arrive in the
-            mobile app.
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const denied = permission === 'denied';
-
-  async function handlePress() {
-    if (denied) {
-      Linking.openSettings().catch(() => {});
-      return;
-    }
+  async function run(action: () => Promise<void>) {
     setBusy(true);
     try {
-      const next = await requestNotificationPermission();
-      setPermission(next);
-      if (next === 'granted') await syncNotifications();
+      await action();
+    } catch (e) {
+      Alert.alert('Could not turn on reminders', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusy(false);
     }
   }
 
+  if (WEB_PUSH_PLATFORM) {
+    if (pushState === null || pushState === 'subscribed') return null;
+
+    if (pushState === 'unsupported') {
+      // On iOS this is fixable by installing; elsewhere it genuinely isn't.
+      const installable = needsHomeScreenInstall();
+      return (
+        <Banner
+          title={installable ? 'Add to your Home Screen for reminders' : 'Reminders aren’t available here'}
+          body={
+            installable
+              ? 'Tap Share, then Add to Home Screen. iPhone only delivers reminders to an installed app.'
+              : 'This browser can’t receive reminders. Everything else works — try Chrome, or the mobile app.'
+          }
+        />
+      );
+    }
+
+    if (pushState === 'denied') {
+      return (
+        <Banner
+          title="Reminders are blocked"
+          body="Notifications are turned off for this site, so nobody here will nudge you. Re-enable them in your browser settings."
+        />
+      );
+    }
+
+    return (
+      <Banner
+        title="Reminders are off"
+        body="Turn them on and you'll get a nudge when it's time to reach out."
+        actionLabel={busy ? 'Turning on…' : 'Turn on'}
+        onAction={() => run(async () => setPushState(await subscribeToWebPush()))}
+        disabled={busy}
+      />
+    );
+  }
+
+  if (!LOCAL_NOTIFICATIONS_SUPPORTED) return null;
+  if (nativeState === null || nativeState === 'granted') return null;
+
+  if (nativeState === 'denied') {
+    return (
+      <Banner
+        title="Reminders are blocked"
+        body="Notifications are turned off for this app, so nobody here will nudge you."
+        actionLabel="Settings"
+        onAction={() => Linking.openSettings().catch(() => {})}
+      />
+    );
+  }
+
+  if (nativeState === 'unsupported') return null;
+
+  return (
+    <Banner
+      title="Reminders are off"
+      body="Allow notifications and your schedules will start nudging you."
+      actionLabel={busy ? 'Asking…' : 'Allow'}
+      disabled={busy}
+      onAction={() =>
+        run(async () => {
+          const next = await requestNotificationPermission();
+          setNativeState(next);
+          if (next === 'granted') await syncNotifications();
+        })
+      }
+    />
+  );
+}
+
+function Banner({
+  title,
+  body,
+  actionLabel,
+  onAction,
+  disabled,
+}: {
+  title: string;
+  body: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <View style={styles.banner}>
       <View style={styles.text}>
-        <Text style={styles.title}>Reminders are off</Text>
-        <Text style={styles.body}>
-          {denied
-            ? 'Notifications are blocked for this app, so nobody here will nudge you.'
-            : 'Allow notifications and your schedules will start nudging you.'}
-        </Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.body}>{body}</Text>
       </View>
-      <Pressable accessibilityRole="button" hitSlop={8} onPress={handlePress} disabled={busy}>
-        <Text style={[styles.action, busy && styles.actionBusy]}>
-          {denied ? 'Settings' : busy ? 'Asking…' : 'Allow'}
-        </Text>
-      </Pressable>
+      {actionLabel && onAction ? (
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onAction} disabled={disabled}>
+          <Text style={[styles.action, disabled && styles.actionBusy]}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

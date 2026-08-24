@@ -29,6 +29,18 @@ export type Profile = {
   id: string;
   email: string | null;
   created_at: string;
+  /** IANA zone the server computes cadence against. Defaults to 'UTC'. */
+  timezone: string;
+};
+
+export type PushSubscriptionRow = {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  subscription: Record<string, unknown>;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string;
 };
 
 export type Contact = {
@@ -69,6 +81,13 @@ export type Database = {
         Row: Contact;
         Insert: ContactInsert;
         Update: ContactUpdate;
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: PushSubscriptionRow;
+        Insert: Pick<PushSubscriptionRow, 'user_id' | 'endpoint' | 'subscription'> &
+          Partial<PushSubscriptionRow>;
+        Update: Partial<PushSubscriptionRow>;
         Relationships: [];
       };
     };
