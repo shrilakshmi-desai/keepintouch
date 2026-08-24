@@ -1,6 +1,16 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
-  }
+    "strict": true,
+    // The shared cadence engine is imported by both the app and a Deno Edge
+    // Function. Deno requires explicit .ts extensions on relative imports;
+    // this lets tsc accept them. Safe because we only ever typecheck — Metro
+    // does the bundling and resolves the extension itself.
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  // Deno-specific function entrypoints use Deno globals that don't exist in the
+  // app's type environment. The _shared modules they import are still
+  // typechecked, because src/ imports them.
+  "exclude": ["supabase/functions/*/index.ts"]
 }
