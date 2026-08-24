@@ -5,6 +5,9 @@ import { AuthProvider } from './src/auth/AuthProvider';
 import NotificationBridge from './src/components/NotificationBridge';
 import { navigationRef } from './src/navigation/navigationRef';
 import RootNavigator from './src/navigation/RootNavigator';
+import { registerServiceWorker } from './src/pwa/registerServiceWorker';
+
+registerServiceWorker();
 
 export default function App() {
   return (
