@@ -56,6 +56,8 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: contact?.name ?? 'Detail',
+      // Same flush-edge clipping as the People list's Settings button.
+      headerRightContainerStyle: styles.headerRightContainer,
       headerRight: contact
         ? () => (
             <Pressable
@@ -223,8 +225,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
   },
+  headerRightContainer: {
+    paddingRight: spacing.md,
+  },
   headerAction: {
     fontSize: 16,
+    fontWeight: '600',
     color: colors.accent,
   },
   header: {
