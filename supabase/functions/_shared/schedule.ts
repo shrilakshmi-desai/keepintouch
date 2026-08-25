@@ -7,7 +7,7 @@
  */
 import { clockFor, type Clock } from './zonedClock.ts';
 
-export type ScheduleKind = 'recurring' | 'interval' | 'one_time';
+export type ScheduleKind = 'recurring' | 'monthly' | 'interval' | 'one_time';
 
 export type ScheduleConfig = {
   weekday?: number;
@@ -15,6 +15,9 @@ export type ScheduleConfig = {
   minute?: number;
   everyWeeks?: number;
   everyDays?: number;
+  /** monthly: 1-31, clamped to the last day of shorter months. */
+  dayOfMonth?: number;
+  everyMonths?: number;
   fireAt?: string;
 };
 
@@ -32,6 +35,15 @@ export type Schedule =
       minute: number;
       /** 1 = weekly, 2 = fortnightly, 26 ≈ every six months. */
       everyWeeks: number;
+    }
+  | {
+      kind: 'monthly';
+      /** 1-31. Months without that date use their last day. */
+      dayOfMonth: number;
+      hour: number;
+      minute: number;
+      /** 1 = every month, 3 = quarterly. */
+      everyMonths: number;
     }
   | { kind: 'interval'; everyDays: number; hour: number; minute: number }
   | { kind: 'one_time'; fireAt: string };
@@ -82,6 +94,16 @@ export function parseSchedule(kind: ScheduleKind, config: unknown): Schedule {
     };
   }
 
+  if (kind === 'monthly') {
+    return {
+      kind: 'monthly',
+      dayOfMonth: clamp(readNumber(source, 'dayOfMonth', 1), 1, 31),
+      hour: clamp(readNumber(source, 'hour', DEFAULT_HOUR), 0, 23),
+      minute: clamp(readNumber(source, 'minute', DEFAULT_MINUTE), 0, 59),
+      everyMonths: clamp(readNumber(source, 'everyMonths', 1), 1, 24),
+    };
+  }
+
   if (kind === 'interval') {
     return {
       kind: 'interval',
@@ -110,6 +132,13 @@ export function scheduleToConfig(schedule: Schedule): ScheduleConfig {
         minute: schedule.minute,
         everyWeeks: schedule.everyWeeks,
       };
+    case 'monthly':
+      return {
+        dayOfMonth: schedule.dayOfMonth,
+        hour: schedule.hour,
+        minute: schedule.minute,
+        everyMonths: schedule.everyMonths,
+      };
     case 'interval':
       return { everyDays: schedule.everyDays, hour: schedule.hour, minute: schedule.minute };
     case 'one_time':
@@ -133,6 +162,11 @@ function atWallTime(clock: Clock, base: Date, dayOffset: number, hour: number, m
     hour,
     minute,
   });
+}
+
+/** Day count for a 1-based month. Day 0 of the next month is the last of this one. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 export type ComputeOptions = {
@@ -162,6 +196,31 @@ export function computeNextReminder(
       if (afterContact) return null;
       const fireAt = new Date(schedule.fireAt);
       return Number.isNaN(fireAt.getTime()) ? null : fireAt;
+    }
+
+    case 'monthly': {
+      const start = clock.partsOf(from);
+      let year = start.year;
+      let month = start.month;
+
+      // Step whole months rather than adding days, so the date stays put
+      // instead of drifting the way a 28- or 30-day cycle would. The bound is
+      // a backstop: with everyMonths >= 1 the first or second pass always hits.
+      for (let attempt = 0; attempt < 64; attempt += 1) {
+        // Clamped, so "the 31st" lands on the 30th, or the 28th in February,
+        // rather than silently rolling into the following month.
+        const day = Math.min(schedule.dayOfMonth, daysInMonth(year, month));
+        const candidate = clock.instantFrom({ year, month, day, hour: schedule.hour, minute: schedule.minute });
+
+        if (candidate.getTime() > from.getTime()) return candidate;
+
+        month += schedule.everyMonths;
+        while (month > 12) {
+          month -= 12;
+          year += 1;
+        }
+      }
+      return null;
     }
 
     case 'interval': {

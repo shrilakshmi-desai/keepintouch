@@ -5,7 +5,7 @@
  * with `supabase gen types typescript --linked > src/lib/database.types.ts`.
  */
 export type ContactType = 'relative' | 'friend' | 'acquaintance';
-export type ScheduleKind = 'recurring' | 'interval' | 'one_time';
+export type ScheduleKind = 'recurring' | 'monthly' | 'interval' | 'one_time';
 
 /**
  * Shape of `contacts.schedule_config`. Every key is optional because the column
@@ -21,6 +21,9 @@ export type ScheduleConfig = {
   everyWeeks?: number;
   /** interval */
   everyDays?: number;
+  /** monthly: 1-31, clamped to the last day of shorter months */
+  dayOfMonth?: number;
+  everyMonths?: number;
   /** one_time: ISO instant */
   fireAt?: string;
 };

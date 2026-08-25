@@ -17,9 +17,17 @@ type Props = {
 };
 
 const KIND_OPTIONS: { kind: ScheduleKind; label: string }[] = [
+  { kind: 'monthly', label: 'Monthly' },
   { kind: 'recurring', label: 'Weekly' },
   { kind: 'interval', label: 'Every N days' },
   { kind: 'one_time', label: 'Once' },
+];
+
+const MONTH_PRESETS: { months: number; label: string }[] = [
+  { months: 1, label: 'Monthly' },
+  { months: 2, label: '2 months' },
+  { months: 3, label: 'Quarterly' },
+  { months: 6, label: '6 months' },
 ];
 
 const WEEK_PRESETS: { weeks: number; label: string }[] = [
@@ -112,6 +120,49 @@ export default function ScheduleField({ value, onChange }: Props) {
                 label={preset.label}
                 selected={value.everyWeeks === preset.weeks}
                 onPress={() => onChange({ ...value, everyWeeks: preset.weeks })}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      {value.kind === 'monthly' ? (
+        <>
+          <View style={styles.inlineRow}>
+            <Text style={styles.inlineText}>On day</Text>
+            <TextInput
+              value={String(value.dayOfMonth)}
+              onChangeText={(text) => {
+                const digits = text.replace(/[^0-9]/g, '');
+                onChange({
+                  ...value,
+                  dayOfMonth: digits === '' ? 1 : Math.min(31, Math.max(1, Number(digits))),
+                });
+              }}
+              keyboardType="number-pad"
+              selectTextOnFocus
+              style={styles.numberInput}
+              maxLength={2}
+              accessibilityLabel="Day of the month"
+            />
+            <Text style={styles.inlineText}>of the month</Text>
+          </View>
+
+          {value.dayOfMonth > 28 ? (
+            <Text style={styles.hint}>
+              Months without a {value.dayOfMonth}
+              {value.dayOfMonth === 31 ? 'st' : 'th'} use their last day instead.
+            </Text>
+          ) : null}
+
+          <Text style={styles.subLabel}>How often</Text>
+          <View style={styles.row}>
+            {MONTH_PRESETS.map((preset) => (
+              <Chip
+                key={preset.months}
+                label={preset.label}
+                selected={value.everyMonths === preset.months}
+                onPress={() => onChange({ ...value, everyMonths: preset.months })}
               />
             ))}
           </View>
@@ -249,6 +300,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.text,
+  },
+  hint: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   summaryMuted: {
     fontSize: 13,

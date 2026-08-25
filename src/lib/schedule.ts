@@ -26,6 +26,14 @@ export {
 import { WEEKDAY_FULL, type Schedule } from '../../supabase/functions/_shared/schedule';
 import { formatDate, formatTime } from './format';
 
+/** 1 → "1st", 22 → "22nd". 11-13 are the usual exceptions. */
+function ordinal(n: number): string {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  const suffix = { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] ?? 'th';
+  return `${n}${suffix}`;
+}
+
 function timeLabel(hour: number, minute: number): string {
   return formatTime(new Date(2000, 0, 1, hour, minute));
 }
@@ -37,6 +45,12 @@ export function describeSchedule(schedule: Schedule): string {
       const at = timeLabel(schedule.hour, schedule.minute);
       if (schedule.everyWeeks === 1) return `Every ${day} at ${at}`;
       return `Every ${schedule.everyWeeks} weeks on ${day} at ${at}`;
+    }
+    case 'monthly': {
+      const at = timeLabel(schedule.hour, schedule.minute);
+      const day = ordinal(schedule.dayOfMonth);
+      if (schedule.everyMonths === 1) return `Monthly on the ${day} at ${at}`;
+      return `Every ${schedule.everyMonths} months on the ${day} at ${at}`;
     }
     case 'interval': {
       const at = timeLabel(schedule.hour, schedule.minute);
