@@ -3,9 +3,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   View,
@@ -14,8 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import NotificationNotice from '../components/NotificationNotice';
 import { useNow } from '../hooks/useNow';
-import { CONTACT_TYPE_PLURAL, CONTACT_TYPE_TABS, listContacts } from '../lib/contacts';
-import type { Contact, ContactType } from '../lib/database.types';
+import { CONTACT_TYPE_ORDER, CONTACT_TYPE_PLURAL, listContacts } from '../lib/contacts';
+import type { Contact } from '../lib/database.types';
 import { describeDue } from '../lib/format';
 import { syncNotifications } from '../lib/notifications';
 import type { RootStackParamList } from '../navigation/types';
@@ -23,11 +23,12 @@ import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PeopleList'>;
 
+type Section = { title: string; data: Contact[] };
+
 export default function PeopleListScreen({ navigation }: Props) {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeType, setActiveType] = useState<ContactType>('friend');
   // Keeps "Due today" / "Overdue" honest as time passes without a reload.
   const now = useNow();
   const insets = useSafeAreaInsets();
@@ -79,43 +80,20 @@ export default function PeopleListScreen({ navigation }: Props) {
     );
   }
 
-  // Counts come from the full list so a tab still shows its total while another
-  // is on screen, and the list stays sorted by who's due soonest within a type.
-  const countsByType = contacts.reduce<Record<string, number>>((acc, contact) => {
-    acc[contact.type] = (acc[contact.type] ?? 0) + 1;
-    return acc;
-  }, {});
-  const visible = contacts.filter((contact) => contact.type === activeType);
+  /**
+   * A section per type, in CONTACT_TYPE_ORDER. Empty types are dropped rather
+   * than shown as empty headings — a heading with nothing under it reads like
+   * something failed to load. Sorting within each section is untouched:
+   * soonest-due first, unscheduled last.
+   */
+  const sections: Section[] = CONTACT_TYPE_ORDER.map((type) => ({
+    title: `${CONTACT_TYPE_PLURAL[type]} · ${contacts.filter((c) => c.type === type).length}`,
+    data: contacts.filter((contact) => contact.type === type),
+  })).filter((section) => section.data.length > 0);
 
   return (
     <View style={styles.container}>
       <NotificationNotice />
-
-      <View style={styles.tabs}>
-        {CONTACT_TYPE_TABS.map((type) => {
-          const selected = type === activeType;
-          return (
-            <Pressable
-              key={type}
-              accessibilityRole="tab"
-              accessibilityState={{ selected }}
-              onPress={() => setActiveType(type)}
-              style={({ pressed }) => [
-                styles.tab,
-                selected && styles.tabSelected,
-                pressed && styles.tabPressed,
-              ]}
-            >
-              <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]} numberOfLines={1}>
-                {CONTACT_TYPE_PLURAL[type]}
-              </Text>
-              <Text style={[styles.tabCount, selected && styles.tabCountSelected]}>
-                {countsByType[type] ?? 0}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -126,25 +104,27 @@ export default function PeopleListScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      <FlatList
-        data={visible}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={visible.length === 0 ? styles.emptyContent : styles.listContent}
+        stickySectionHeadersEnabled
+        contentContainerStyle={
+          contacts.length === 0 ? styles.emptyContent : styles.listContent
+        }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />
         }
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{section.title.toUpperCase()}</Text>
+          </View>
+        )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>
-              {contacts.length === 0
-                ? 'No one here yet'
-                : `No ${CONTACT_TYPE_PLURAL[activeType].toLowerCase()} yet`}
-            </Text>
+            <Text style={styles.emptyTitle}>No one here yet</Text>
             <Text style={styles.emptyBody}>
-              {contacts.length === 0
-                ? "Add the people you want to stay close to, and you'll get a nudge when it's time."
-                : 'Add someone here, or check the other tabs.'}
+              Add the people you want to stay close to, and you'll get a nudge when it's time.
             </Text>
           </View>
         }
@@ -186,7 +166,7 @@ function PersonRow({
         <Text style={styles.name} numberOfLines={1}>
           {contact.name}
         </Text>
-        {/* Type is no longer repeated per row — the active tab already says it. */}
+        {/* Type isn't repeated per row — the section heading above already says it. */}
         <Text style={styles.meta} numberOfLines={1}>
           {due.label}
         </Text>
@@ -215,54 +195,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.accent,
   },
-  tabs: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  tabSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-  },
-  tabPressed: {
-    opacity: 0.7,
-  },
-  tabLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textMuted,
-    flexShrink: 1,
-  },
-  tabLabelSelected: {
-    color: colors.accent,
-  },
-  tabCount: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textMuted,
-    opacity: 0.8,
-  },
-  tabCountSelected: {
-    color: colors.accent,
-  },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -283,11 +215,25 @@ const styles = StyleSheet.create({
     color: colors.overdue,
   },
   listContent: {
-    paddingVertical: spacing.sm,
+    paddingBottom: spacing.sm,
   },
   emptyContent: {
     flexGrow: 1,
     justifyContent: 'center',
+  },
+  // Opaque, because it sticks over rows as they scroll beneath it.
+  sectionHeader: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    color: colors.textMuted,
   },
   separator: {
     height: 1,
@@ -300,6 +246,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+    backgroundColor: colors.background,
   },
   rowPressed: {
     backgroundColor: colors.surface,
