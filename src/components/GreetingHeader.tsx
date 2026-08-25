@@ -16,15 +16,7 @@ function greeting(now: Date): string {
  * The "all caught up" state matters as much as the count: an app that only ever
  * tells you what you owe people is one you stop wanting to open.
  */
-export default function GreetingHeader({
-  contacts,
-  now,
-  name,
-}: {
-  contacts: Contact[];
-  now: Date;
-  name?: string | null;
-}) {
+export default function GreetingHeader({ contacts, now }: { contacts: Contact[]; now: Date }) {
   const waiting = contacts.filter(
     (contact) => describeDue(contact.next_reminder_at, now).overdue,
   ).length;
@@ -52,10 +44,9 @@ export default function GreetingHeader({
 
   return (
     <View style={[styles.card, caughtUp ? styles.cardCalm : styles.cardActive]}>
-      <Text style={styles.greeting}>
-        {greeting(now)}
-        {name ? `, ${name}` : ''}
-      </Text>
+      {/* No name: the app never asks for one, and guessing it from the email
+          handle produced things like "Good morning, Shrilakshmidesai99". */}
+      <Text style={styles.greeting}>{greeting(now)}</Text>
       <Text style={[styles.headline, caughtUp && styles.headlineCalm]}>{headline}</Text>
       <Text style={styles.sub}>{sub}</Text>
     </View>

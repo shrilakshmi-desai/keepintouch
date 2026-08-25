@@ -4,6 +4,7 @@ import { useCallback, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -62,7 +63,7 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
             // Same flush-edge clipping as the People list's Settings button.
             <Pressable
               accessibilityRole="button"
-              hitSlop={8}
+              hitSlop={12}
               style={styles.headerButton}
               onPress={() => navigation.navigate('AddEditPerson', { contactId })}
             >
@@ -231,9 +232,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
   },
+  // See PeopleListScreen: margin moves the button, padding would not.
   headerButton: {
-    paddingLeft: spacing.md,
-    paddingRight: spacing.xs,
+    marginRight: Platform.OS === 'web' ? spacing.md : 0,
+    paddingVertical: spacing.xs,
   },
   headerAction: {
     fontSize: 16,

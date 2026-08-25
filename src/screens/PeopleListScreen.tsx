@@ -3,6 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -11,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../auth/AuthProvider';
 import Avatar from '../components/Avatar';
 import Button from '../components/Button';
 import GreetingHeader from '../components/GreetingHeader';
@@ -27,16 +27,7 @@ import { colors, radius, shadow, spacing, type } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'PeopleList'>;
 type Section = { title: string; data: Contact[] };
 
-/** First name only — "Good morning, Shri" reads better than a full name. */
-function firstNameFrom(email?: string | null): string | null {
-  if (!email) return null;
-  const handle = email.split('@')[0]?.split(/[._+-]/)[0];
-  if (!handle) return null;
-  return handle.charAt(0).toUpperCase() + handle.slice(1);
-}
-
 export default function PeopleListScreen({ navigation }: Props) {
-  const { session } = useAuth();
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,11 +61,9 @@ export default function PeopleListScreen({ navigation }: Props) {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        // Native stack has no headerRightContainerStyle, so the padding that
-        // keeps the last glyph off the screen edge goes on the button itself.
         <Pressable
           accessibilityRole="button"
-          hitSlop={8}
+          hitSlop={12}
           style={styles.headerButton}
           onPress={() => navigation.navigate('Settings')}
         >
@@ -122,11 +111,7 @@ export default function PeopleListScreen({ navigation }: Props) {
         contentContainerStyle={contacts.length === 0 ? styles.emptyContent : styles.listContent}
         ListHeaderComponent={
           contacts.length > 0 ? (
-            <GreetingHeader
-              contacts={contacts}
-              now={now}
-              name={firstNameFrom(session?.user.email)}
-            />
+            <GreetingHeader contacts={contacts} now={now} />
           ) : null
         }
         refreshControl={
@@ -211,9 +196,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.background,
   },
+  /**
+   * margin, not padding: padding only adds space inside the button, leaving it
+   * flush against the screen edge. iOS's native header already insets its right
+   * slot, so the nudge is web-only — doubling up would push it too far in.
+   * hitSlop keeps the tap target generous either way.
+   */
   headerButton: {
-    paddingLeft: spacing.md,
-    paddingRight: spacing.xs,
+    marginRight: Platform.OS === 'web' ? spacing.md : 0,
+    paddingVertical: spacing.xs,
   },
   headerAction: {
     ...type.bodyStrong,
