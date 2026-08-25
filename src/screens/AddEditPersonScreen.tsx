@@ -2,7 +2,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -17,6 +16,7 @@ import ScheduleField from '../components/ScheduleField';
 import TextField from '../components/TextField';
 import TypeSelector from '../components/TypeSelector';
 import { CONTACT_IMPORT_SUPPORTED, importFromDeviceContacts } from '../lib/contactImport';
+import { confirm, notify } from '../lib/dialogs';
 import { createContact, getContact, updateContact, type ContactDraft } from '../lib/contacts';
 import { syncNotifications } from '../lib/notifications';
 import type { ContactType } from '../lib/database.types';
@@ -85,11 +85,10 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
         setSavedNextReminderAt(contact.next_reminder_at);
       })
       .catch((e: unknown) => {
-        Alert.alert(
+        void notify(
           'Could not load this person',
           e instanceof Error ? e.message : 'Please try again.',
-          [{ text: 'OK', onPress: () => goBackOrHome(navigation) }],
-        );
+        ).then(() => goBackOrHome(navigation));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -108,7 +107,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
       if (result.status === 'cancelled') return;
 
       if (result.status === 'unavailable') {
-        Alert.alert('Contact import unavailable', result.reason);
+        await notify('Contact import unavailable', result.reason);
         return;
       }
 
@@ -124,22 +123,22 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
       if (importedEmail) setEmail(importedEmail);
 
       if (result.limitedByPermission) {
-        Alert.alert(
-          'Only the name came through',
-          'KeepInTouch needs contacts access to read phone numbers and emails. You can enable it in Settings, or just type them in.',
-          [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ],
-        );
+        const openSettings = await confirm({
+          title: 'Only the name came through',
+          message:
+            'KeepInTouch needs contacts access to read phone numbers and emails. Open Settings to enable it, or just type them in.',
+          confirmLabel: 'Open Settings',
+          cancelLabel: 'Not now',
+        });
+        if (openSettings) Linking.openSettings();
       } else if (!importedPhone && !importedEmail) {
-        Alert.alert(
+        await notify(
           'No phone or email',
           `${importedName || 'That contact'} has no phone number or email saved on this device.`,
         );
       }
     } catch (e) {
-      Alert.alert('Could not import', e instanceof Error ? e.message : 'Please try again.');
+      await notify('Could not import', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setImporting(false);
     }
@@ -191,7 +190,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
 
       goBackOrHome(navigation);
     } catch (e) {
-      Alert.alert('Could not save', e instanceof Error ? e.message : 'Please try again.');
+      await notify('Could not save', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setSaving(false);
     }

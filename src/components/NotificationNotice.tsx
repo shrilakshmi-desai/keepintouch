@@ -1,6 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { notify } from '../lib/dialogs';
 import {
   LOCAL_NOTIFICATIONS_SUPPORTED,
   getNotificationPermission,
@@ -56,7 +57,7 @@ export default function NotificationNotice() {
     try {
       await action();
     } catch (e) {
-      Alert.alert('Could not turn on reminders', e instanceof Error ? e.message : 'Please try again.');
+      await notify('Could not turn on reminders', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusy(false);
     }

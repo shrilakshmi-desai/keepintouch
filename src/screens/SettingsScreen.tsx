@@ -1,8 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import Button from '../components/Button';
+import { notify } from '../lib/dialogs';
 import {
   LOCAL_NOTIFICATIONS_SUPPORTED,
   getNotificationPermission,
@@ -96,7 +97,7 @@ export default function SettingsScreen() {
     try {
       await action();
     } catch (e) {
-      Alert.alert(failureTitle, e instanceof Error ? e.message : 'Please try again.');
+      await notify(failureTitle, e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusy(false);
     }

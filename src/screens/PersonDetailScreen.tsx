@@ -3,7 +3,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import { useNow } from '../hooks/useNow';
 import { CONTACT_TYPE_LABELS, deleteContact, getContact, markReachedOut } from '../lib/contacts';
+import { confirm, notify } from '../lib/dialogs';
 import type { Contact } from '../lib/database.types';
 import { describeDue, formatDateTime } from '../lib/format';
 import { syncNotifications } from '../lib/notifications';
@@ -79,29 +79,29 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
       // The pending notification was scheduled against the old reminder time.
       await syncNotifications();
     } catch (e) {
-      Alert.alert('Could not save', e instanceof Error ? e.message : 'Please try again.');
+      await notify('Could not save', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setReachingOut(false);
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!contact) return;
-    Alert.alert('Delete this person?', `${contact.name} will be removed. This can't be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteContact(contact.id);
-            goBackOrHome(navigation);
-          } catch (e) {
-            Alert.alert('Could not delete', e instanceof Error ? e.message : 'Please try again.');
-          }
-        },
-      },
-    ]);
+
+    const ok = await confirm({
+      title: `Delete ${contact.name}?`,
+      message: "They'll be removed along with their reminders. This can't be undone.",
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await deleteContact(contact.id);
+      goBackOrHome(navigation);
+    } catch (e) {
+      await notify('Could not delete', e instanceof Error ? e.message : 'Please try again.');
+    }
   }
 
   if (error) {
@@ -198,7 +198,7 @@ function ContactLink({ label, url }: { label: string; url: string }) {
       hitSlop={4}
       onPress={() => {
         Linking.openURL(url).catch(() => {
-          Alert.alert('Could not open', `Nothing on this device can handle ${url}.`);
+          void notify('Could not open', `Nothing on this device can handle ${url}.`);
         });
       }}
     >
