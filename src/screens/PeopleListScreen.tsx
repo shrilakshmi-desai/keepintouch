@@ -60,14 +60,14 @@ export default function PeopleListScreen({ navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      // The header's right slot sits flush against the screen edge, so the last
-      // glyph clips on some widths. Padding the container keeps the tap target
-      // full-size while pulling the text inside the safe edge.
-      headerRightContainerStyle: styles.headerRightContainer,
       headerRight: () => (
+        // Native stack has no headerRightContainerStyle, so the padding that
+        // keeps the last glyph off the screen edge goes on the button itself.
+        // hitSlop preserves the tap target the padding would otherwise shrink.
         <Pressable
           accessibilityRole="button"
           hitSlop={8}
+          style={styles.headerButton}
           onPress={() => navigation.navigate('Settings')}
         >
           <Text style={styles.headerAction}>Settings</Text>
@@ -195,8 +195,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.background,
   },
-  headerRightContainer: {
-    paddingRight: spacing.md,
+  headerButton: {
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
   },
   headerAction: {
     fontSize: 16,

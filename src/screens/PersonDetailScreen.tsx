@@ -56,13 +56,13 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: contact?.name ?? 'Detail',
-      // Same flush-edge clipping as the People list's Settings button.
-      headerRightContainerStyle: styles.headerRightContainer,
       headerRight: contact
         ? () => (
+            // Same flush-edge clipping as the People list's Settings button.
             <Pressable
               accessibilityRole="button"
               hitSlop={8}
+              style={styles.headerButton}
               onPress={() => navigation.navigate('AddEditPerson', { contactId })}
             >
               <Text style={styles.headerAction}>Edit</Text>
@@ -225,8 +225,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
   },
-  headerRightContainer: {
-    paddingRight: spacing.md,
+  headerButton: {
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
   },
   headerAction: {
     fontSize: 16,
