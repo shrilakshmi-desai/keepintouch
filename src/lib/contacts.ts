@@ -105,3 +105,16 @@ export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
   friend: 'Friend',
   acquaintance: 'Acquaintance',
 };
+
+export const CONTACT_TYPE_PLURAL: Record<ContactType, string> = {
+  relative: 'Relatives',
+  friend: 'Friends',
+  acquaintance: 'Acquaintances',
+};
+
+/** Tab order on the People list. Not alphabetical — most-used first. */
+export const CONTACT_TYPE_TABS: readonly ContactType[] = [
+  'friend',
+  'relative',
+  'acquaintance',
+] as const;
