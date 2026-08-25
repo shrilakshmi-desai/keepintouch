@@ -16,7 +16,7 @@ import {
   subscribeToWebPush,
   type WebPushState,
 } from '../lib/webPush';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing, type } from '../theme';
 
 /**
  * Tells the user when reminders won't reach them, and offers the one action
@@ -167,9 +167,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.accentSoft,
-    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.overdueSoft,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    borderRadius: radius.md,
   },
   text: {
     flex: 1,

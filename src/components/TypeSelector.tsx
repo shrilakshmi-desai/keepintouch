@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CONTACT_TYPES, CONTACT_TYPE_LABELS } from '../lib/contacts';
 import type { ContactType } from '../lib/database.types';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing, type } from '../theme';
 
 type Props = {
   value: ContactType;
@@ -43,8 +43,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...type.label,
     color: colors.textMuted,
   },
   row: {
@@ -55,10 +54,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.sm + 2,
-    borderRadius: 10,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
   },
   optionSelected: {
     borderColor: colors.accent,

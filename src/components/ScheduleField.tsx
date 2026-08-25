@@ -9,7 +9,7 @@ import {
   describeSchedule,
   type Schedule,
 } from '../lib/schedule';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing, type } from '../theme';
 
 type Props = {
   value: Schedule;
@@ -176,8 +176,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...type.label,
     color: colors.textMuted,
   },
   subLabel: {
@@ -194,10 +193,10 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
   },
   chipCompact: {
     paddingHorizontal: spacing.sm + 2,
@@ -231,7 +230,7 @@ const styles = StyleSheet.create({
   numberInput: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontSize: 16,
@@ -242,8 +241,8 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: spacing.xs,
     padding: spacing.md,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    backgroundColor: colors.accentSoft,
     gap: 2,
   },
   summaryLine: {

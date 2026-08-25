@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, spacing } from '../theme';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 type Props = {
   label: string;
@@ -33,18 +33,19 @@ export default function Button({ label, onPress, variant = 'primary', disabled =
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 12,
+    borderRadius: radius.pill,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
   primary: {
     backgroundColor: colors.accent,
+    ...shadow.card,
   },
   secondary: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
   },
   pressed: {
     opacity: 0.75,
@@ -53,11 +54,10 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...type.bodyStrong,
   },
   primaryLabel: {
-    color: '#FFFFFF',
+    color: colors.accentText,
   },
   secondaryLabel: {
     color: colors.text,

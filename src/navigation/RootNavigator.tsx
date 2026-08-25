@@ -6,7 +6,7 @@ import PeopleListScreen from '../screens/PeopleListScreen';
 import PersonDetailScreen from '../screens/PersonDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SignInScreen from '../screens/SignInScreen';
-import { colors } from '../theme';
+import { colors, type } from '../theme';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -30,8 +30,10 @@ export default function RootNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
+        headerTintColor: colors.accent,
+        headerTitleStyle: { ...type.heading, color: colors.text },
         headerShadowVisible: false,
+        headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: colors.background },
       }}
     >

@@ -1,13 +1,13 @@
 {
   "name": "KeepInTouch",
   "short_name": "KeepInTouch",
-  "description": "Stay close to the people who matter — a nudge when it's time, and something to talk about.",
+  "description": "Stay close to the people who matter \u2014 a nudge when it's time, and something to talk about.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFFFF",
-  "theme_color": "#2563EB",
+  "background_color": "#FFFBF7",
+  "theme_color": "#F4552F",
   "icons": [
     {
       "src": "/icons/icon-192.png",

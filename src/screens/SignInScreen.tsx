@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import Button from '../components/Button';
-import { colors, spacing } from '../theme';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 export default function SignInScreen() {
   const { signInWithGoogle } = useAuth();
@@ -23,10 +23,16 @@ export default function SignInScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Keep In Touch</Text>
+      <View style={styles.hero}>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.logo}
+          accessibilityLabel="KeepInTouch"
+        />
+        <Text style={styles.title}>KeepInTouch</Text>
         <Text style={styles.subtitle}>
-          Stay close to the people who matter — a nudge when it's time, and something to talk about.
+          Stay close to the people who matter — a nudge when it&rsquo;s time, and something to talk
+          about.
         </Text>
       </View>
 
@@ -37,6 +43,9 @@ export default function SignInScreen() {
           <Button label="Continue with Google" onPress={handleSignIn} />
         )}
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Text style={styles.footnote}>
+          Your people stay private to your account — nobody else can see them.
+        </Text>
       </View>
     </View>
   );
@@ -48,20 +57,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: spacing.lg,
     justifyContent: 'center',
-    gap: spacing.xl,
+    gap: spacing.xxl,
   },
-  header: {
+  hero: {
+    alignItems: 'center',
     gap: spacing.sm,
   },
+  logo: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.lg + 6,
+    marginBottom: spacing.sm,
+    ...shadow.card,
+  },
   title: {
-    fontSize: 34,
-    fontWeight: '700',
+    ...type.display,
     color: colors.text,
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 22,
+    ...type.body,
+    lineHeight: 23,
+    textAlign: 'center',
     color: colors.textMuted,
+    paddingHorizontal: spacing.md,
   },
   actions: {
     gap: spacing.md,
@@ -69,8 +87,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   error: {
-    fontSize: 14,
+    ...type.small,
     lineHeight: 20,
-    color: colors.overdue,
+    color: colors.danger,
+    textAlign: 'center',
+  },
+  footnote: {
+    fontSize: 13,
+    textAlign: 'center',
+    color: colors.textMuted,
   },
 });

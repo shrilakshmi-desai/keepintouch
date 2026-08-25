@@ -21,7 +21,7 @@ import {
   unsubscribeFromWebPush,
   type WebPushState,
 } from '../lib/webPush';
-import { colors, spacing } from '../theme';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 const PERMISSION_COPY: Record<PermissionState, { title: string; body: string }> = {
   granted: {
@@ -235,22 +235,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...type.label,
     color: colors.textMuted,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     gap: spacing.xs,
+    ...shadow.card,
   },
   cardWarning: {
     backgroundColor: colors.overdueSoft,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    ...type.heading,
     color: colors.text,
   },
   cardTitleWarning: {

@@ -2,7 +2,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatDateTime, formatTime } from '../lib/format';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 
 export type DateTimeInputProps = {
   value: Date;
@@ -59,7 +59,8 @@ const styles = StyleSheet.create({
   button: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     minWidth: 140,

@@ -1,5 +1,5 @@
 import type { DateTimeInputProps } from './DateTimeInput';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 
 /**
  * Browser date/time control.
@@ -62,12 +62,12 @@ export default function DateTimeInput({
       }}
       style={{
         border: `1px solid ${colors.border}`,
-        borderRadius: 12,
+        borderRadius: radius.md,
         padding: `${spacing.md}px`,
         fontSize: 16,
         fontFamily: 'inherit',
         color: colors.text,
-        background: colors.background,
+        background: colors.card,
         minWidth: 180,
       }}
     />

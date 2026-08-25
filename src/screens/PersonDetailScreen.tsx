@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Avatar from '../components/Avatar';
 import Button from '../components/Button';
 import { useNow } from '../hooks/useNow';
 import { CONTACT_TYPE_LABELS, deleteContact, getContact, markReachedOut } from '../lib/contacts';
@@ -21,7 +22,7 @@ import { syncNotifications } from '../lib/notifications';
 import { describeSchedule, parseSchedule } from '../lib/schedule';
 import { goBackOrHome } from '../navigation/goBackOrHome';
 import type { RootStackParamList } from '../navigation/types';
-import { colors, spacing } from '../theme';
+import { colors, radius, shadow, spacing, type } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PersonDetail'>;
 
@@ -129,9 +130,14 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom }]}
     >
-      <View style={styles.header}>
-        <Text style={styles.name}>{contact.name}</Text>
-        <Text style={styles.type}>{CONTACT_TYPE_LABELS[contact.type]}</Text>
+      <View style={styles.hero}>
+        <Avatar name={contact.name} size={64} />
+        <View style={styles.header}>
+          <Text style={styles.name} numberOfLines={2}>
+            {contact.name}
+          </Text>
+          <Text style={styles.type}>{CONTACT_TYPE_LABELS[contact.type]}</Text>
+        </View>
       </View>
 
       <View style={[styles.card, due.overdue && styles.cardOverdue]}>
@@ -235,11 +241,11 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   header: {
+    flex: 1,
     gap: spacing.xs,
   },
   name: {
-    fontSize: 28,
-    fontWeight: '700',
+    ...type.display,
     color: colors.text,
   },
   type: {
@@ -247,22 +253,26 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     gap: spacing.xs,
+    ...shadow.card,
   },
   cardOverdue: {
     backgroundColor: colors.overdueSoft,
   },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
   cardLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...type.label,
     color: colors.textMuted,
   },
   cardValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    ...type.title,
     color: colors.text,
   },
   cardValueOverdue: {
@@ -276,8 +286,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...type.label,
     color: colors.textMuted,
   },
   body: {
