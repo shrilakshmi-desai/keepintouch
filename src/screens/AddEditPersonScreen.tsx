@@ -28,6 +28,7 @@ import {
   scheduleToConfig,
   type Schedule,
 } from '../lib/schedule';
+import { goBackOrHome } from '../navigation/goBackOrHome';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
 
@@ -87,7 +88,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
         Alert.alert(
           'Could not load this person',
           e instanceof Error ? e.message : 'Please try again.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          [{ text: 'OK', onPress: () => goBackOrHome(navigation) }],
         );
       })
       .finally(() => {
@@ -188,7 +189,7 @@ export default function AddEditPersonScreen({ navigation, route }: Props) {
         console.warn('[notifications] post-save sync failed:', e),
       );
 
-      navigation.goBack();
+      goBackOrHome(navigation);
     } catch (e) {
       Alert.alert('Could not save', e instanceof Error ? e.message : 'Please try again.');
     } finally {

@@ -19,6 +19,7 @@ import type { Contact } from '../lib/database.types';
 import { describeDue, formatDateTime } from '../lib/format';
 import { syncNotifications } from '../lib/notifications';
 import { describeSchedule, parseSchedule } from '../lib/schedule';
+import { goBackOrHome } from '../navigation/goBackOrHome';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
 
@@ -94,7 +95,7 @@ export default function PersonDetailScreen({ navigation, route }: Props) {
         onPress: async () => {
           try {
             await deleteContact(contact.id);
-            navigation.goBack();
+            goBackOrHome(navigation);
           } catch (e) {
             Alert.alert('Could not delete', e instanceof Error ? e.message : 'Please try again.');
           }

@@ -13,6 +13,13 @@ import type { RootStackParamList } from './types';
 export const webLinking: LinkingOptions<RootStackParamList> = {
   prefixes: [Linking.createURL('/')],
   config: {
+    /**
+     * Without this, opening /person/<id> from a notification makes PersonDetail
+     * the only screen on the stack: no back button, and goBack() silently does
+     * nothing. Naming the initial route rebuilds the list underneath it, so a
+     * deep-linked screen behaves exactly like one reached by tapping through.
+     */
+    initialRouteName: 'PeopleList',
     screens: {
       SignIn: 'signin',
       PeopleList: '',
